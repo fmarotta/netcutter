@@ -26,3 +26,9 @@ You can install the development version of netcutter from [GitHub](https://githu
 # install.packages("devtools")
 devtools::install_github("fmarotta/netcutter")
 ```
+
+## Badgers
+
+<!-- badges: start -->
+[![R-CMD-check](https://github.com/fmarotta/netcutter/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/fmarotta/netcutter/actions/workflows/R-CMD-check.yaml)
+<!-- badges: end -->
