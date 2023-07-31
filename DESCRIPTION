@@ -5,19 +5,24 @@ Version: 0.1.0
 Authors@R: c(
     person("Heiko", "Müller", role = "aut"),
     person("Francesco", "Mancuso", role = "aut"),
-    person("Federico", "Marotta", role = c("aut", "cre")))
+    person("Federico", "Marotta", email = "federico.marotta@embl.de", role = "cre"))
 Maintainer: Federico Marotta <federico.marotta@embl.de>
 Description: R implementation of the NetCutter algorithm described in
     "H. Müller, F. Mancuso, Identification and analysis of co-occurrence
     networks with NetCutter. PLoS ONE 3, e3178 (2008)." The package identifies
     co-occurring terms in a list of containers. For example, it may be used
     to detect genes that co-occur across genomes.
-URL: https://github.com/fmarotta/netcutter
+URL: https://doi.org/10.1371/journal.pone.0003178
 BugReports: https://github.com/fmarotta/netcutter/issues
 License: MIT + file LICENSE
 Encoding: UTF-8
 Imports: PoissonBinomial
 Suggests: 
+    knitr,
+    rmarkdown,
+    qpdf,
     testthat (>= 3.0.0)
 Config/testthat/edition: 3
+Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.2.3
+VignetteBuilder: knitr

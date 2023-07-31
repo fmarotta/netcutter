@@ -1,11 +1,11 @@
 #' Randomise the co-ocurrence matrix
 #'
+#' Apply an edge-swapping algorithm.
+#'
 #' @param occ_matrix The original co-occurrence matrix.
 #' @param S The number of successful edge swaps to perform.
 #'
 #' @return A randomised copy of the co-occurrence matrix.
-#'
-#' @examples
 nc_randomize <- function(occ_matrix, S) {
   # Create a copy of the original matrix
   m <- matrix(occ_matrix, nrow(occ_matrix), ncol(occ_matrix))
@@ -28,17 +28,36 @@ nc_randomize <- function(occ_matrix, S) {
 #' @param occ_matrix The original co-occurrence matrix
 #' @param R The number of randomisations to perform
 #' @param S The number of successful edge swaps for each randomisation
-#' @param mc.cores Number of parallel computations with mclapply() (set to 1 for serial execution)
-#' @param n_batches Split the computation into `n_batches` to avoid excessive memory usage
-
+#' @param mc.cores Number of parallel computations with mclapply() (set to 1 for
+#'   serial execution)
+#' @param n_batches Split the computation into `n_batches` to avoid excessive
+#'   memory usage
+#'
 #' @return The occurrence probability matrix.
-#' @export
 #'
 #' @examples
+#' # Generate an occurrence matrix.
+#' m <- matrix(FALSE, 3, 9, dimnames = list(paste0("ID", 1:3), paste0("gene", 1:9)))
+#' m[1, 1:3] <- m[2, c(1:2, 4:5)] <- m[3, c(1, 6:9)] <- TRUE
+#' # Set the seed using the "L'Ecuyer-CMRG" random number generator.
+#' set.seed(1, "L'Ecuyer-CMRG")
+#' # Compute the occurrence probabilities.
+#' occ_probs <- nc_occ_probs(m, R = 20, S = 50)
+#' # Using `n_batches=1` can speed up the computations at the cost of more RAM.
+#' occ_probs <- nc_occ_probs(m, R = 20, n_batches = 1, mc.cores = 1)
+#'
+#' @export
 nc_occ_probs <- function(occ_matrix, R = 500, S = sum(occ_matrix) * 20,
-                         mc.cores = getOption("mc.cores", 2L), n_batches = ceiling(R / 30)) {
-  seeds <- generate_seeds(R)
+                         mc.cores = getOption("mc.cores", 1L), n_batches = ceiling(R / 30)) {
   batch_size <- ceiling(R / n_batches)
+  if (!is.numeric(mc.cores) || mc.cores <= 0) {
+    stop("mc.cores must be positive.")
+  }
+  if (batch_size < mc.cores) {
+    stop("Because you are using ", mc.cores, " cores, the maximum number of ",
+         "batches is ceiling(R / ", mc.cores, ") = ", ceiling(R / mc.cores))
+  }
+  seeds <- generate_seeds(R)
   swaps <- matrix(0, nrow(occ_matrix), ncol(occ_matrix))
   for (batch in seq_len(n_batches)) {
     b <- seq((batch - 1) * batch_size + 1, min(batch * batch_size, R))
@@ -53,6 +72,12 @@ nc_occ_probs <- function(occ_matrix, R = 500, S = sum(occ_matrix) * 20,
   swaps / R
 }
 
+#' Compute the occurrence probabilities
+#'
+#' This is a simpler implementation used to check that the official
+#' implementation ([nc_occ_probs()]) works well.
+#'
+#' @inheritParams nc_occ_probs
 nc_occ_probs_simple <- function(occ_matrix, R, S) {
   seeds <- generate_seeds(R)
   swaps <- lapply(seeds, function(r) {
@@ -65,10 +90,19 @@ nc_occ_probs_simple <- function(occ_matrix, R, S) {
   occ_probs
 }
 
-nc_define_modules <- function(occ_matrix, module_size, min_occurrences, min_support) {
+#' Define co-occurrence modules
+#'
+#' Helper function to generate the list of co-occurrence terms grouped into
+#' modules of a specified size.
+#'
+#' @param occ_matrix The original occurrence matrix.
+#' @param module_size The number of terms that should be tested for
+#'   co-occurrence.
+#' @param min_occurrences Minimum number of occurrences of each term.
+#'
+#' @return A `data.frame` with one row for each valid module.
+nc_define_modules <- function(occ_matrix, module_size, min_occurrences) {
   valid_terms <- which(colSums(occ_matrix) >= min_occurrences)
-  message("The following terms are below the occurrence threshold: ",
-          paste(which(colSums(occ_matrix) < min_occurrences), collapse = ", "))
   l <- rep(list(valid_terms), module_size)
   M <- expand.grid(l)
   if (module_size > 1) {
@@ -76,12 +110,6 @@ nc_define_modules <- function(occ_matrix, module_size, min_occurrences, min_supp
       M <- eval(parse(text = paste0("M[M$Var", j - 1, " < ", "M$Var", j, ", ]")))
     }
   }
-  support <- apply(M, 1, function(module) {
-    sum(rowSums(occ_matrix[, module]) == module_size)
-  })
-  message("The following modules are below the support threshold: ",
-          paste(apply(M[support < min_support, ], 1, paste, collapse = "-"), collapse = ","))
-  M <- M[support >= min_support, ]
   if (!is.null(colnames(occ_matrix))) {
     M <- as.data.frame(lapply(M, function(x) colnames(occ_matrix)[x]))
   }
@@ -89,10 +117,42 @@ nc_define_modules <- function(occ_matrix, module_size, min_occurrences, min_supp
   M
 }
 
-
+#' Compute co-occurrence probabilities
+#'
+#' The main NetCutter function. It generates p-values for all the co-occurring
+#' modules.
+#'
+#' @inheritParams nc_define_modules
+#' @param occ_matrix The original occurrence matrix.
+#' @param occ_probs The matrix of occurrence probabilities, as computed by
+#'   [nc_occ_probs()].
+#' @param min_support Minimum number of occurrences of each module.
+#'
+#' @return A `data.frame` with one row for each valid module, and corresponding
+#'   number of co-occurrences and p-value.
+#'
+#' @examples
+#' # Generate an occurrence matrix.
+#' m <- matrix(FALSE, 3, 9, dimnames = list(paste0("ID", 1:3), paste0("gene", 1:9)))
+#' m[1, 1:3] <- m[2, c(1:2, 4:5)] <- m[3, c(1, 6:9)] <- TRUE
+#' # Set the seed using the "L'Ecuyer-CMRG" random number generator.
+#' set.seed(1, "L'Ecuyer-CMRG")
+#' # Compute the occurrence probabilities.
+#' occ_probs <- nc_occ_probs(m, R = 20, S = 50)
+#' # Evaluate the co-occurrences of pairs of terms and their statistical significance.
+#' nc_eval(m, occ_probs, module_size = 2)
+#' # Now evaluate triples; no need to recompute the occurrence probabilities.
+#' nc_eval(m, occ_probs, module_size = 3)
+#'
+#' @importFrom PoissonBinomial ppbinom
+#' @export
 nc_eval <- function(occ_matrix, occ_probs, module_size = 2, min_occurrences = 0, min_support = 0) {
-  M <- nc_define_modules(occ_matrix, module_size, min_occurrences, min_support)
+  M <- nc_define_modules(occ_matrix, module_size, min_occurrences)
   params <- apply(M, 1, function(module) {
+    k <- sum(rowSums(occ_matrix[, module]) == module_size)
+    if (k < min_support) {
+      return(c(k, NA))
+    }
     pp <- apply(occ_probs[, module], 1, prod)
     c(k, ppbinom(k, pp, method = "Characteristic"))
   })
@@ -101,7 +161,18 @@ nc_eval <- function(occ_matrix, occ_probs, module_size = 2, min_occurrences = 0,
   M
 }
 
+#' Generate seeds for streams of "L'Ecuyer-CMRG" random numbers
+#'
+#' @param n Number of streams needed.
+#'
+#' @returns A list of seeds.
 generate_seeds <- function(n) {
+  if (RNGkind()[1] != "L'Ecuyer-CMRG") {
+    stop("Due to parallel computations and reproducibility, the netcutter",
+         "package requires a \"L'Ecuyer-CMRG\" random number generator.",
+         "Please run either `RNGKind(\"L'Ecuyer-CMRG\")` or",
+         "`set.seed(<my seed>, 'L'Ecuyer-CMRG'.")
+  }
   seeds <- vector("list", n)
   seeds[[1]] <- .Random.seed
   for (i in 2:n)
