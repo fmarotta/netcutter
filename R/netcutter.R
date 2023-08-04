@@ -78,8 +78,9 @@ nc_randomize_simple <- function(occ_matrix, S) {
 #' occ_probs <- nc_occ_probs(m, R = 20, n_batches = 1, mc.cores = 1)
 #'
 #' @export
-nc_occ_probs <- function(occ_matrix, R = 500, S = sum(occ_matrix) * 20,
-                         mc.cores = getOption("mc.cores", 1L), n_batches = ceiling(R / 30)) {
+nc_occ_probs <- function(occ_matrix, R = 500, S = sum(occ_matrix) * 10,
+                         mc.cores = getOption("mc.cores", 1L), n_batches = ceiling(R / 30),
+                         verbose = F) {
   batch_size <- ceiling(R / n_batches)
   if (!is.numeric(mc.cores) || mc.cores <= 0) {
     stop("mc.cores must be positive.")
@@ -91,6 +92,9 @@ nc_occ_probs <- function(occ_matrix, R = 500, S = sum(occ_matrix) * 20,
   seeds <- generate_seeds(R)
   swaps <- matrix(0, nrow(occ_matrix), ncol(occ_matrix))
   for (batch in seq_len(n_batches)) {
+    if (verbose) {
+      message("Starting batch ", batch)
+    }
     b <- seq((batch - 1) * batch_size + 1, min(batch * batch_size, R))
     swaps_batch <- parallel::mclapply(seeds[b], mc.cores = mc.cores, function(r) {
       .Random.seed <<- r
