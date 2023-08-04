@@ -1,12 +1,43 @@
-#' Randomise the co-ocurrence matrix
+#' Randomize the occurrence matrix
 #'
 #' Apply an edge-swapping algorithm.
 #'
-#' @param occ_matrix The original co-occurrence matrix.
+#' @param occ_matrix The original occurrence matrix.
 #' @param S The number of successful edge swaps to perform.
 #'
-#' @return A randomised copy of the co-occurrence matrix.
+#' @return A randomized copy of the occurrence matrix.
 nc_randomize <- function(occ_matrix, S) {
+  # Create a copy of the original matrix
+  m <- matrix(occ_matrix, nrow(occ_matrix), ncol(occ_matrix))
+  l <- length(m)
+  d <- dim(m)
+  s <- 1
+  while (s <= S) {
+    # Choose the first edge at random and the second among the "compatible ones"
+    source <- arrayInd(sample((1:l)[m], 1), d)
+    mask <- m
+    mask[, which(m[source[1], ])] <- F
+    mask[which(m[, source[2]]), ] <- F
+    if (sum(mask) == 0) {
+      # This source edge has no compatible targets
+      next()
+    }
+    target <- arrayInd(sample((1:l)[mask], 1), d)
+    m[source[1], source[2]] <- m[target[1], target[2]] <- F
+    m[source[1], target[2]] <- m[target[1], source[2]] <- T
+    s <- s + 1
+  }
+  m
+}
+nc_randomise <- nc_randomize
+
+#' Randomize the occurrence matrix
+#'
+#' This is a simpler implementation used to check that the official
+#' implementation ([nc_randomize()]) works well.
+#'
+#' @inheritParams nc_randomize
+nc_randomize_simple <- function(occ_matrix, S) {
   # Create a copy of the original matrix
   m <- matrix(occ_matrix, nrow(occ_matrix), ncol(occ_matrix))
   for (s in seq_len(S)) {
@@ -82,7 +113,7 @@ nc_occ_probs_simple <- function(occ_matrix, R, S) {
   seeds <- generate_seeds(R)
   swaps <- lapply(seeds, function(r) {
     .Random.seed <<- r
-    nc_randomize(occ_matrix, S)
+    nc_randomize_simple(occ_matrix, S)
   })
   occ_probs <- Reduce(`+`, swaps) / R
   rownames(occ_probs) <- rownames(occ_matrix)
@@ -179,8 +210,3 @@ generate_seeds <- function(n) {
     seeds[[i+1]] <- parallel::nextRNGStream(seeds[[i]])
   seeds
 }
-
-
-
-
-
