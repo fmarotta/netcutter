@@ -63,6 +63,7 @@ nc_randomize_simple <- function(occ_matrix, S) {
 #'   serial execution)
 #' @param n_batches Split the computation into `n_batches` to avoid excessive
 #'   memory usage
+#' @param verbose Print a status message when starting every new batch.
 #'
 #' @return The occurrence probability matrix.
 #'

@@ -7,9 +7,10 @@
 nc_occ_probs(
   occ_matrix,
   R = 500,
-  S = sum(occ_matrix) * 20,
+  S = sum(occ_matrix) * 10,
   mc.cores = getOption("mc.cores", 1L),
-  n_batches = ceiling(R/30)
+  n_batches = ceiling(R/30),
+  verbose = F
 )
 }
 \arguments{
@@ -24,6 +25,8 @@ serial execution)}
 
 \item{n_batches}{Split the computation into \code{n_batches} to avoid excessive
 memory usage}
+
+\item{verbose}{Print a status message when starting every new batch.}
 }
 \value{
 The occurrence probability matrix.

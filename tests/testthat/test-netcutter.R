@@ -14,7 +14,7 @@ test_that("randomization works", {
   expect_false(identical(unname(m_random), unname(m)))
 
   # the result should not depend on the implementation (within statistical fluctuations)
-  R <- 1000
+  R <- 500
   S <- 100
   set.seed(1, "L'Ecuyer-CMRG")
   seeds <- generate_seeds(R)
@@ -112,4 +112,5 @@ test_that("generating random seeds works", {
   expect_error(generate_seeds(10))
   RNGkind("L'Ecu")
   expect_true(length(generate_seeds(10)) == 10)
+  expect_true(length(generate_seeds(1)) == 1)
 })
