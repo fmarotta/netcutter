@@ -175,8 +175,8 @@ generate_seeds <- function(n) {
   }
   seeds <- vector("list", n)
   seeds[[1]] <- .Random.seed
-  for (i in 2:n)
-    seeds[[i]] <- parallel::nextRNGStream(seeds[[i-1]])
+  for (i in seq_len(n-1))
+    seeds[[i+1]] <- parallel::nextRNGStream(seeds[[i]])
   seeds
 }
 
