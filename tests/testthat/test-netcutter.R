@@ -52,6 +52,9 @@ test_that("occurrence probabilities make sense", {
   expect_identical(rowSums(occ_probs), rowSums(m))
   # The cols should add up to the number of edges of each term
   expect_identical(colSums(occ_probs), colSums(m))
+  # Parameters should make sense
+  expect_error(nc_occ_probs(m, R = 0))
+  expect_error(nc_occ_probs(m, mc.cores = 0))
 })
 
 test_that("parallelisation works (not on windows)", {
