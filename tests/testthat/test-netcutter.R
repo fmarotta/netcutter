@@ -12,6 +12,25 @@ test_that("randomization works", {
   # the result should *probably* not be exactly identical to the starting matrix,
   # change the seed if this test fails.
   expect_false(identical(unname(m_random), unname(m)))
+
+  # the result should not depend on the implementation (within statistical fluctuations)
+  R <- 1000
+  S <- 100
+  set.seed(1, "L'Ecuyer-CMRG")
+  seeds <- generate_seeds(R)
+  swaps <- lapply(seeds, function(r) {
+    .Random.seed <<- r
+    nc_randomize(m, S)
+  })
+  swaps_mean <- Reduce(`+`, swaps) / R
+  swaps_simple <- lapply(seeds, function(r) {
+    .Random.seed <<- r
+    nc_randomize_simple(m, S)
+  })
+  swaps_mean_simple <- Reduce(`+`, swaps_simple) / R
+  # Swaps are 0-1 variables so their are equal to their square
+  swaps_var_simple <- swaps_mean_simple - swaps_mean_simple^2
+  expect_true(all(abs(swaps_mean - swaps_mean_simple) <= sqrt(swaps_var_simple)))
 })
 
 test_that("occurrence probabilities make sense", {

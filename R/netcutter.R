@@ -117,7 +117,7 @@ nc_occ_probs_simple <- function(occ_matrix, R, S) {
   seeds <- generate_seeds(R)
   swaps <- lapply(seeds, function(r) {
     .Random.seed <<- r
-    nc_randomize_simple(occ_matrix, S)
+    nc_randomize(occ_matrix, S)
   })
   occ_probs <- Reduce(`+`, swaps) / R
   rownames(occ_probs) <- rownames(occ_matrix)
