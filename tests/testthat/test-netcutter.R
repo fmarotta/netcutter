@@ -87,10 +87,12 @@ test_that("we can compute co-occurrence probabilities", {
   # k should be between 0 and nrow(m)
   expect_true(all(nc$k >= 0 & nc$k < nrow(m)))
   # p-values should be between 0 and 1
-  expect_true(all(nc$pvals >= 0 & nc$pvals <= 1))
-  # If k < min_support, the p-value should be NA
+  expect_true(all(nc$`Pr(==k)` >= 0 & nc$`Pr(==k)` <= 1))
+  expect_true(all(nc$`Pr(>=k)` >= 0 & nc$`Pr(>=k)` <= 1))
+  # If k < min_support, the p-values should be NA
   nc_minsupp <- nc_eval(m, occ_probs, module_size = 2, min_support = 1)
-  expect_true(all(is.na(nc_minsupp[nc_minsupp$k < 1, ]$pvals)))
+  expect_true(all(is.na(nc_minsupp[nc_minsupp$k < 1, ]$`Pr(==k)`)))
+  expect_true(all(is.na(nc_minsupp[nc_minsupp$k < 1, ]$`Pr(>=k)`)))
 })
 
 test_that("generating random seeds works", {

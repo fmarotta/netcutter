@@ -99,3 +99,7 @@ nc <- nc_eval(occ_matrix, occ_probs, module_size = 2)
 
 print(nc)
 ```
+
+Note that `nc_eval()` will return, in addition to the support `k`, two probabilities.
+`Pr(==k)` is the probability that this module be found in exactly `k` containers under the null hypothesis; `Pr(>=k)` is the one-sides p-value, or the probability that this module be found in `k` or more containers under the null hypothesis.
+Negative co-occurrence, that is, when a module occurs less often than expected, indicating that the terms are somewhat "mutually exclusive", can be evaluated by computing `Pr(<=k)` as `1 - Pr(>=k) + Pr(==k)`.

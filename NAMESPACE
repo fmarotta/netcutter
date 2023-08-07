@@ -2,4 +2,5 @@
 
 export(nc_eval)
 export(nc_occ_probs)
+importFrom(PoissonBinomial,dpbinom)
 importFrom(PoissonBinomial,ppbinom)

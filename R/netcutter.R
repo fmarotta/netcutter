@@ -182,7 +182,7 @@ nc_define_modules <- function(occ_matrix, module_size, min_occurrences) {
 #' # Now evaluate triples; no need to recompute the occurrence probabilities.
 #' nc_eval(m, occ_probs, module_size = 3)
 #'
-#' @importFrom PoissonBinomial ppbinom
+#' @importFrom PoissonBinomial ppbinom dpbinom
 #' @export
 nc_eval <- function(occ_matrix, occ_probs,
                     module_size = 2, min_occurrences = 0, min_support = 0,
@@ -194,13 +194,16 @@ nc_eval <- function(occ_matrix, occ_probs,
     params <- apply(M, 1, function(module) {
       k <- sum(rowSums(occ_matrix[, module]) == module_size)
       if (k < min_support) {
-        return(c(k, NA))
+        return(c(k, NA, NA))
       }
       pp <- apply(occ_probs[, module], 1, prod)
-      c(k, ppbinom(k, pp, method = "Characteristic"))
+      c(k,
+        dpbinom(k, pp, method = "Characteristic"),
+        ppbinom(k - 1, pp, method = "Characteristic", lower.tail = F))
     })
     M$k <- params[1, ]
-    M$pval <- params[2, ]
+    M$`Pr(==k)` <- params[2, ]
+    M$`Pr(>=k)` <- params[3, ]
     M
   })
   unsplit(M_all, batches)
