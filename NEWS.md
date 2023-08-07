@@ -1,4 +1,9 @@
-# netcutter (development version)
+# netcutter 0.2.0
+
+# netcutter v0.2.0
+
+* Fix p-values calculation: provide `Pr(==k)` and `Pr(>=k)`.
+* Add a `mc.cores` option to nc_eval()
 
 # netcutter v0.1.1
 

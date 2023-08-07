@@ -1,7 +1,7 @@
 Package: netcutter
 Type: Package
 Title: Identification and Analysis of Co-Occurrence Networks
-Version: 0.1.1
+Version: 0.2.0
 Authors@R: c(
     person("Heiko", "Müller", role = "aut"),
     person("Francesco", "Mancuso", role = "aut"),
