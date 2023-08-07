@@ -57,23 +57,6 @@ test_that("occurrence probabilities make sense", {
   expect_error(nc_occ_probs(m, mc.cores = 0))
 })
 
-test_that("parallelisation works (not on windows)", {
-  skip_on_os("windows")
-
-  m <- matrix(F, nrow = 3, ncol = 9, dimnames = list(paste0("PMID", 1:3), paste0("gene", 1:9)))
-  m[1, 1:3] <- m[2, c(1:2, 4:5)] <- m[3, c(1, 6:9)] <- T
-
-  # The complexity of mc.cores and n_batches shouldn't affect the end result
-  set.seed(1, "L'Ecuyer-CMRG")
-  occ_probs_ref <- nc_occ_probs_simple(m, R = 20, S = 50)
-  set.seed(1, "L'Ecuyer-CMRG")
-  occ_probs <- nc_occ_probs(m, R = 20, S = 50, mc.cores = 2)
-  expect_equal(occ_probs, occ_probs_ref)
-  set.seed(1, "L'Ecuyer-CMRG")
-  occ_probs <- nc_occ_probs(m, R = 20, S = 50, mc.cores = 2, n_batches = 5)
-  expect_equal(occ_probs, occ_probs_ref)
-})
-
 test_that("we can list all possible modules", {
   m <- matrix(F, nrow = 3, ncol = 9, dimnames = list(paste0("PMID", 1:3), paste0("gene", 1:9)))
   m[1, 1:3] <- m[2, c(1:2, 4:5)] <- m[3, c(1, 6:9)] <- T
@@ -116,4 +99,29 @@ test_that("generating random seeds works", {
   RNGkind("L'Ecu")
   expect_true(length(generate_seeds(10)) == 10)
   expect_true(length(generate_seeds(1)) == 1)
+})
+
+test_that("parallelisation works (not on windows)", {
+  skip_on_os("windows")
+
+  m <- matrix(F, nrow = 3, ncol = 9, dimnames = list(paste0("PMID", 1:3), paste0("gene", 1:9)))
+  m[1, 1:3] <- m[2, c(1:2, 4:5)] <- m[3, c(1, 6:9)] <- T
+
+  # The complexity of mc.cores and n_batches shouldn't affect the end result
+  set.seed(1, "L'Ecuyer-CMRG")
+  occ_probs_ref <- nc_occ_probs_simple(m, R = 20, S = 50)
+  set.seed(1, "L'Ecuyer-CMRG")
+  occ_probs <- nc_occ_probs(m, R = 20, S = 50, mc.cores = 2)
+  expect_equal(occ_probs, occ_probs_ref)
+  set.seed(1, "L'Ecuyer-CMRG")
+  occ_probs <- nc_occ_probs(m, R = 20, S = 50, mc.cores = 2, n_batches = 5)
+  expect_equal(occ_probs, occ_probs_ref)
+
+  # Using many cores shouldn't change the nc_eval() result
+  nc_ref <- nc_eval(m, occ_probs_ref, mc.cores = 1)
+  nc_twocores <- nc_eval(m, occ_probs_ref, mc.cores = 2)
+  expect_equal(nc_ref, nc_twocores)
+  nc_ref <- nc_eval(m, occ_probs_ref, min_support = 1, min_occurrences = 1, mc.cores = 1)
+  nc_twocores <- nc_eval(m, occ_probs_ref, min_support = 1, min_occurrences = 1, mc.cores = 2)
+  expect_equal(nc_ref, nc_twocores)
 })

@@ -163,6 +163,8 @@ nc_define_modules <- function(occ_matrix, module_size, min_occurrences) {
 #' @param occ_probs The matrix of occurrence probabilities, as computed by
 #'   [nc_occ_probs()].
 #' @param min_support Minimum number of occurrences of each module.
+#' @param mc.cores Number of parallel computations with mclapply() (set to 1 for
+#'   serial execution)
 #'
 #' @return A `data.frame` with one row for each valid module, and corresponding
 #'   number of co-occurrences and p-value.
@@ -182,19 +184,26 @@ nc_define_modules <- function(occ_matrix, module_size, min_occurrences) {
 #'
 #' @importFrom PoissonBinomial ppbinom
 #' @export
-nc_eval <- function(occ_matrix, occ_probs, module_size = 2, min_occurrences = 0, min_support = 0) {
+nc_eval <- function(occ_matrix, occ_probs,
+                    module_size = 2, min_occurrences = 0, min_support = 0,
+                    mc.cores = 1) {
   M <- nc_define_modules(occ_matrix, module_size, min_occurrences)
-  params <- apply(M, 1, function(module) {
-    k <- sum(rowSums(occ_matrix[, module]) == module_size)
-    if (k < min_support) {
-      return(c(k, NA))
-    }
-    pp <- apply(occ_probs[, module], 1, prod)
-    c(k, ppbinom(k, pp, method = "Characteristic"))
+  batches <- rep(1:mc.cores, length.out=nrow(M))
+  M_batches <- split(M, batches)
+  M_all <- parallel::mclapply(M_batches, mc.cores = mc.cores, function(M) {
+    params <- apply(M, 1, function(module) {
+      k <- sum(rowSums(occ_matrix[, module]) == module_size)
+      if (k < min_support) {
+        return(c(k, NA))
+      }
+      pp <- apply(occ_probs[, module], 1, prod)
+      c(k, ppbinom(k, pp, method = "Characteristic"))
+    })
+    M$k <- params[1, ]
+    M$pval <- params[2, ]
+    M
   })
-  M$k <- params[1, ]
-  M$pvals <- params[2, ]
-  M
+  unsplit(M_all, batches)
 }
 
 #' Generate seeds for streams of "L'Ecuyer-CMRG" random numbers

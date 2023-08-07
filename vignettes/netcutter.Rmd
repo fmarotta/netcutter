@@ -92,6 +92,7 @@ For example, the pair "gene5-gene6" does not co-occur in any container, so its s
 Note that negative co-occurrence, *i.e.* occurring together in fewer containers than expected by chance, can also be interesting in some cases.
 At any rate, `nc_eval()` will return a `data.frame` with one row for each module, and corresponding columns for the support of that module and the p-value.
 Modules below the `min_support` threshold will have `NA` as p-value.
+As with `nc_occ_probs()`, the `mc.cores` argument is also supported; setting it to a high value could speed-up computations for larger problems.
 
 ```{r}
 nc <- nc_eval(occ_matrix, occ_probs, module_size = 2)

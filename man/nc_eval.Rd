@@ -9,7 +9,8 @@ nc_eval(
   occ_probs,
   module_size = 2,
   min_occurrences = 0,
-  min_support = 0
+  min_support = 0,
+  mc.cores = 1
 )
 }
 \arguments{
@@ -24,6 +25,9 @@ co-occurrence.}
 \item{min_occurrences}{Minimum number of occurrences of each term.}
 
 \item{min_support}{Minimum number of occurrences of each module.}
+
+\item{mc.cores}{Number of parallel computations with mclapply() (set to 1 for
+serial execution)}
 }
 \value{
 A \code{data.frame} with one row for each valid module, and corresponding
