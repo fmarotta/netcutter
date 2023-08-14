@@ -1,4 +1,8 @@
-# netcutter 0.2.0
+# netcutter development version
+
+# netcutter 0.2.1
+
+* Rewrite the edge-swapping algorithm in C++ (it's now 20 times faster).
 
 # netcutter v0.2.0
 

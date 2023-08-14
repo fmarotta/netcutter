@@ -48,7 +48,6 @@ LogicalMatrix randomize(NumericMatrix occ_matrix, unsigned int S) {
     if (!mask_size) {
       continue;
     }
-    // find the row of source
     for (k = r, j = 0; k < m.size(); k += nrow, ++j) {
       if (m[k]) {
         i = j * nrow;

@@ -14,7 +14,8 @@ nc_randomise <- nc_randomize
 
 #' Randomize the occurrence matrix
 #'
-#' Old implementation in pure R, kept for testing purposes.
+#' Old implementation in pure R, kept for testing purposes and for
+#' reproducibility of old results.
 #'
 #' @inheritParams nc_randomize
 nc_randomize_R <- function(occ_matrix, S) {
