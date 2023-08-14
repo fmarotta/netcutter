@@ -7,6 +7,17 @@
 #'
 #' @return A randomized copy of the occurrence matrix.
 nc_randomize <- function(occ_matrix, S) {
+  stopifnot(S >= 0)
+  .Call(`_netcutter_randomize`, occ_matrix, S)
+}
+nc_randomise <- nc_randomize
+
+#' Randomize the occurrence matrix
+#'
+#' Old implementation in pure R, kept for testing purposes.
+#'
+#' @inheritParams nc_randomize
+nc_randomize_R <- function(occ_matrix, S) {
   # Create a copy of the original matrix
   m <- matrix(occ_matrix, nrow(occ_matrix), ncol(occ_matrix))
   l <- length(m)
@@ -29,7 +40,6 @@ nc_randomize <- function(occ_matrix, S) {
   }
   m
 }
-nc_randomise <- nc_randomize
 
 #' Randomize the occurrence matrix
 #'

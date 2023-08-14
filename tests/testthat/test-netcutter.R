@@ -22,7 +22,13 @@ test_that("randomization works", {
     .Random.seed <<- r
     nc_randomize(m, S)
   })
+  swaps_R <- lapply(seeds, function(r) {
+    .Random.seed <<- r
+    nc_randomize_R(m, S)
+  })
   swaps_mean <- Reduce(`+`, swaps) / R
+  swaps_mean_R <- Reduce(`+`, swaps_R) / R
+  expect_equal(unname(swaps_mean), swaps_mean_R)
   swaps_simple <- lapply(seeds, function(r) {
     .Random.seed <<- r
     nc_randomize_simple(m, S)
