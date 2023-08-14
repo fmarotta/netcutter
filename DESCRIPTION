@@ -1,7 +1,7 @@
 Package: netcutter
 Type: Package
 Title: Identification and Analysis of Co-Occurrence Networks
-Version: 0.2.0
+Version: 0.2.1
 Authors@R: c(
     person("Heiko", "Müller", role = "aut"),
     person("Francesco", "Mancuso", role = "aut"),
@@ -16,8 +16,10 @@ URL: https://doi.org/10.1371/journal.pone.0003178
 BugReports: https://github.com/fmarotta/netcutter/issues
 License: MIT + file LICENSE
 Encoding: UTF-8
-Imports: PoissonBinomial
-Suggests: 
+Imports:
+    PoissonBinomial,
+    Rcpp
+Suggests:
     knitr,
     rmarkdown,
     qpdf,
@@ -26,3 +28,5 @@ Config/testthat/edition: 3
 Roxygen: list(markdown = TRUE)
 RoxygenNote: 7.2.3
 VignetteBuilder: knitr
+LinkingTo:
+    Rcpp
