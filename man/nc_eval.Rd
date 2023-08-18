@@ -7,6 +7,7 @@
 nc_eval(
   occ_matrix,
   occ_probs,
+  terms_of_interest = NULL,
   module_size = 2,
   min_occurrences = 0,
   min_support = 0,
@@ -18,6 +19,9 @@ nc_eval(
 
 \item{occ_probs}{The matrix of occurrence probabilities, as computed by
 \code{\link[=nc_occ_probs]{nc_occ_probs()}}.}
+
+\item{terms_of_interest}{Vector of column names or indices representing the
+terms that should be included in the analysis.}
 
 \item{module_size}{The number of terms that should be tested for
 co-occurrence.}
@@ -37,6 +41,12 @@ number of co-occurrences and p-value.
 The main NetCutter function. It generates p-values for all the co-occurring
 modules.
 }
+\details{
+If \code{terms_of_interest} is \code{NULL}, all the terms in \code{occ_matrix} are used. If
+it is not null, only modules containing at least one of these terms will be
+considered. \code{min_occurrences} and \code{min_support} are still used to further
+restrict the list of terms that are considered.
+}
 \examples{
 # Generate an occurrence matrix.
 m <- matrix(FALSE, 3, 9, dimnames = list(paste0("ID", 1:3), paste0("gene", 1:9)))
@@ -49,5 +59,7 @@ occ_probs <- nc_occ_probs(m, R = 20, S = 50)
 nc_eval(m, occ_probs, module_size = 2)
 # Now evaluate triples; no need to recompute the occurrence probabilities.
 nc_eval(m, occ_probs, module_size = 3)
+# Now consider only modules involving gene1 or gene2.
+nc_eval(m, occ_probs, module_size = 3, terms_of_interest = c("gene1", "gene2"))
 
 }

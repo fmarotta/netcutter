@@ -4,10 +4,13 @@
 \alias{nc_define_modules}
 \title{Define co-occurrence modules}
 \usage{
-nc_define_modules(occ_matrix, module_size, min_occurrences)
+nc_define_modules(occ_matrix, terms_of_interest, module_size, min_occurrences)
 }
 \arguments{
 \item{occ_matrix}{The original occurrence matrix.}
+
+\item{terms_of_interest}{Vector of column names or indices representing the
+terms that should be included in the analysis.}
 
 \item{module_size}{The number of terms that should be tested for
 co-occurrence.}
@@ -15,7 +18,7 @@ co-occurrence.}
 \item{min_occurrences}{Minimum number of occurrences of each term.}
 }
 \value{
-A \code{data.frame} with one row for each valid module.
+A list of the valid modules.
 }
 \description{
 Helper function to generate the list of co-occurrence terms grouped into

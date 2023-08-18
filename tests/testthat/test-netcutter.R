@@ -70,20 +70,23 @@ test_that("we can list all possible modules", {
   m[1, 1:3] <- m[2, c(1:2, 4:5)] <- m[3, c(1, 6:9)] <- T
 
   # With a size of 2, we expect choose(ncol(m), 2) possible modules.
-  modules_two <- nc_define_modules(m, module_size = 2, min_occurrences = 0)
-  expect_equal(nrow(modules_two), choose(ncol(m), 2))
+  modules_two <- nc_define_modules(m, terms_of_interest = NULL, module_size = 2, min_occurrences = 0)
+  expect_equal(length(modules_two), choose(ncol(m), 2))
   # With a size of 3, we expect choose(ncol(m), 3) possible modules.
-  modules_three <- nc_define_modules(m, module_size = 3, min_occurrences = 0)
-  expect_equal(nrow(modules_three), choose(ncol(m), 3))
+  modules_three <- nc_define_modules(m, terms_of_interest = NULL, module_size = 3, min_occurrences = 0)
+  expect_equal(length(modules_three), choose(ncol(m), 3))
   # All the terms should be represented
-  expect_true(all(colnames(m) %in% unique(c(modules_two$Var1, modules_two$Var2))))
-  expect_true(all(unique(modules_two$Var1) %in% colnames(m)))
-  expect_true(all(unique(modules_two$Var2) %in% colnames(m)))
-  # The term names should be ordered Var1 < Var2 < Var3
-  expect_true(all(modules_three$Var1 < modules_three$Var2 & modules_three$Var2 < modules_three$Var3))
+  expect_true(all(colnames(m) %in% unique(unlist(modules_two))))
+  expect_true(all(unique(unlist(modules_two)) %in% colnames(m)))
   # Check that `min_occurrences` works
-  modules <- nc_define_modules(m, module_size = 2, min_occurrences = 2)
-  expect_equal(nrow(modules), choose(sum(colSums(m) >= 2), 2))
+  modules <- nc_define_modules(m, terms_of_interest = NULL, module_size = 2, min_occurrences = 2)
+  expect_equal(length(modules), choose(sum(colSums(m) >= 2), 2))
+  modules <- nc_define_modules(m, terms_of_interest = NULL, module_size = 3, min_occurrences = 1)
+  expect_equal(length(modules), choose(sum(colSums(m) >= 1), 3))
+  # Check that `terms_of_interest` are included
+  toi <- c("gene1", "gene9")
+  modules <- nc_define_modules(m, terms_of_interest = toi, module_size = 2, min_occurrences = 0)
+  expect_true(all(sapply(modules, function(x) any(toi %in% x))))
 })
 
 test_that("we can compute co-occurrence probabilities", {

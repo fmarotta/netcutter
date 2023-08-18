@@ -10,7 +10,6 @@ nc_randomize <- function(occ_matrix, S) {
   stopifnot(S >= 0)
   .Call(`_netcutter_randomize`, occ_matrix, S)
 }
-nc_randomise <- nc_randomize
 
 #' Randomize the occurrence matrix
 #'
@@ -142,25 +141,23 @@ nc_occ_probs_simple <- function(occ_matrix, R, S) {
 #' Helper function to generate the list of co-occurrence terms grouped into
 #' modules of a specified size.
 #'
-#' @param occ_matrix The original occurrence matrix.
-#' @param module_size The number of terms that should be tested for
-#'   co-occurrence.
-#' @param min_occurrences Minimum number of occurrences of each term.
+#' @inheritParams nc_eval
 #'
-#' @return A `data.frame` with one row for each valid module.
-nc_define_modules <- function(occ_matrix, module_size, min_occurrences) {
-  valid_terms <- which(colSums(occ_matrix) >= min_occurrences)
-  l <- rep(list(valid_terms), module_size)
-  M <- expand.grid(l)
-  if (module_size > 1) {
-    for (j in seq(2, module_size)) {
-      M <- eval(parse(text = paste0("M[M$Var", j - 1, " < ", "M$Var", j, ", ]")))
+#' @return A list of the valid modules.
+nc_define_modules <- function(occ_matrix, terms_of_interest, module_size, min_occurrences) {
+  valid_terms <- unname(which(colSums(occ_matrix) >= min_occurrences))
+  M <- utils::combn(valid_terms, module_size, simplify = F)
+  if (!is.null(terms_of_interest)) {
+    if (is.character(terms_of_interest) && all(terms_of_interest %in% colnames(occ_matrix))) {
+      terms_of_interest <- match(terms_of_interest, colnames(occ_matrix))
+    } else if (!(is.numeric(terms_of_interest) && all(terms_of_interest %in% 1:ncol(occ_matrix)))) {
+      stop("`terms_of_interest` must be valid column names or indices for `occ_matrix`.")
     }
+    M <- Filter(function(x) any(x %in% terms_of_interest), M)
   }
   if (!is.null(colnames(occ_matrix))) {
-    M <- as.data.frame(lapply(M, function(x) colnames(occ_matrix)[x]))
+    M <- lapply(M, function(x) colnames(occ_matrix)[x])
   }
-  rownames(M) <- NULL
   M
 }
 
@@ -169,13 +166,23 @@ nc_define_modules <- function(occ_matrix, module_size, min_occurrences) {
 #' The main NetCutter function. It generates p-values for all the co-occurring
 #' modules.
 #'
-#' @inheritParams nc_define_modules
 #' @param occ_matrix The original occurrence matrix.
 #' @param occ_probs The matrix of occurrence probabilities, as computed by
 #'   [nc_occ_probs()].
+#' @param terms_of_interest Vector of column names or indices representing the
+#'   terms that should be included in the analysis.
+#' @param module_size The number of terms that should be tested for
+#'   co-occurrence.
+#' @param min_occurrences Minimum number of occurrences of each term.
 #' @param min_support Minimum number of occurrences of each module.
 #' @param mc.cores Number of parallel computations with mclapply() (set to 1 for
 #'   serial execution)
+#'
+#' @details
+#' If `terms_of_interest` is `NULL`, all the terms in `occ_matrix` are used. If
+#' it is not null, only modules containing at least one of these terms will be
+#' considered. `min_occurrences` and `min_support` are still used to further
+#' restrict the list of terms that are considered.
 #'
 #' @return A `data.frame` with one row for each valid module, and corresponding
 #'   number of co-occurrences and p-value.
@@ -192,32 +199,33 @@ nc_define_modules <- function(occ_matrix, module_size, min_occurrences) {
 #' nc_eval(m, occ_probs, module_size = 2)
 #' # Now evaluate triples; no need to recompute the occurrence probabilities.
 #' nc_eval(m, occ_probs, module_size = 3)
+#' # Now consider only modules involving gene1 or gene2.
+#' nc_eval(m, occ_probs, module_size = 3, terms_of_interest = c("gene1", "gene2"))
 #'
 #' @importFrom PoissonBinomial ppbinom dpbinom
 #' @export
-nc_eval <- function(occ_matrix, occ_probs,
+nc_eval <- function(occ_matrix, occ_probs, terms_of_interest = NULL,
                     module_size = 2, min_occurrences = 0, min_support = 0,
                     mc.cores = 1) {
-  M <- nc_define_modules(occ_matrix, module_size, min_occurrences)
-  batches <- rep(1:mc.cores, length.out=nrow(M))
-  M_batches <- split(M, batches)
-  M_all <- parallel::mclapply(M_batches, mc.cores = mc.cores, function(M) {
-    params <- apply(M, 1, function(module) {
-      k <- sum(rowSums(occ_matrix[, module]) == module_size)
-      if (k < min_support) {
-        return(c(k, NA, NA))
-      }
-      pp <- apply(occ_probs[, module], 1, prod)
-      c(k,
-        dpbinom(k, pp, method = "Characteristic"),
-        ppbinom(k - 1, pp, method = "Characteristic", lower.tail = F))
-    })
-    M$k <- params[1, ]
-    M$`Pr(==k)` <- params[2, ]
-    M$`Pr(>=k)` <- params[3, ]
-    M
+  M <- nc_define_modules(occ_matrix, terms_of_interest, module_size, min_occurrences)
+  params <- parallel::mclapply(M, mc.cores = mc.cores, function(module) {
+    k <- sum(rowSums(occ_matrix[, module]) == module_size)
+    if (k < min_support) {
+      return(c(k, NA, NA))
+    }
+    pp <- apply(occ_probs[, module], 1, prod)
+    # pp <- eval(parse(text = paste(paste0("occ_probs[, module[", 1:module_size, "]]"), collapse = " * ")))
+    # pp <- occ_probs[, module[1]]; for (m in 2:length(module)) pp <- pp * occ_probs[, module[2]]
+    c(k,
+      dpbinom(k, pp, method = "Characteristic"),
+      ppbinom(k - 1, pp, method = "Characteristic", lower.tail = F))
   })
-  unsplit(M_all, batches)
+  res <- data.frame(
+    do.call(rbind, M),
+    do.call(rbind, params)
+  )
+  names(res) <- c(paste0("Term", 1:module_size), "k", "Pr(==k)", "Pr(>=k)")
+  res
 }
 
 #' Generate seeds for streams of "L'Ecuyer-CMRG" random numbers

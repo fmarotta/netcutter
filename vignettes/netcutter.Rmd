@@ -78,7 +78,7 @@ For this reason, we also provide the `n_batches` argument, to split the computat
 If your RAM explodes, try increasing `n_batches`.
 If you have infinite resources, set it to 1 for maximum speed.
 
-In version 0.2.1, nc_randomise() was reimplemented in with `Rcpp`, making it about 20 times faster.
+In version 0.2.1, nc_randomise() was reimplemented with `Rcpp`, making it about 20 times faster.
 However, Rcpp still uses a random sampler that has been deprecated in R (see [here](https://stackoverflow.com/questions/60119621/get-the-same-sample-of-integers-from-rcpp-as-base-r)).
 The bias should be noticeable only for large occurrence matrices, but it will be there until someone fixes the Rcpp implementation.
 Note for developers: to compare the R and Rcpp implementations, you should set `RNGking(sample.kind = "Rounding")`.
