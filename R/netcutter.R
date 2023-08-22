@@ -146,14 +146,21 @@ nc_occ_probs_simple <- function(occ_matrix, R, S) {
 #' @return A list of the valid modules.
 nc_define_modules <- function(occ_matrix, terms_of_interest, module_size, min_occurrences) {
   valid_terms <- unname(which(colSums(occ_matrix) >= min_occurrences))
-  M <- utils::combn(valid_terms, module_size, simplify = F)
   if (!is.null(terms_of_interest)) {
     if (is.character(terms_of_interest) && all(terms_of_interest %in% colnames(occ_matrix))) {
       terms_of_interest <- match(terms_of_interest, colnames(occ_matrix))
     } else if (!(is.numeric(terms_of_interest) && all(terms_of_interest %in% 1:ncol(occ_matrix)))) {
       stop("`terms_of_interest` must be valid column names or indices for `occ_matrix`.")
     }
-    M <- Filter(function(x) any(x %in% terms_of_interest), M)
+    other_terms <- setdiff(valid_terms, terms_of_interest)
+    M <- combn(terms_of_interest, module_size, simplify = F)
+    for (ms in seq_len(module_size - 1)) {
+      toi_combn <- combn(terms_of_interest, ms, simplify = F)
+      other_combn <- combn(other_terms, module_size - ms, simplify = F)
+      M <- c(M, unlist(lapply(toi_combn, function(toi) lapply(other_combn, function(o) c(toi, o))), recursive = F))
+    }
+  } else {
+    M <- utils::combn(valid_terms, module_size, simplify = F)
   }
   if (!is.null(colnames(occ_matrix))) {
     M <- lapply(M, function(x) colnames(occ_matrix)[x])
@@ -207,6 +214,7 @@ nc_define_modules <- function(occ_matrix, terms_of_interest, module_size, min_oc
 nc_eval <- function(occ_matrix, occ_probs, terms_of_interest = NULL,
                     module_size = 2, min_occurrences = 0, min_support = 0,
                     mc.cores = 1) {
+  stopifnot(module_size >= 1)
   M <- nc_define_modules(occ_matrix, terms_of_interest, module_size, min_occurrences)
   params <- parallel::mclapply(M, mc.cores = mc.cores, function(module) {
     k <- sum(rowSums(occ_matrix[, module]) == module_size)
