@@ -1,5 +1,7 @@
 # netcutter development version
 
+* Introduce the `terms_of_interest` argument of nc_eval().
+
 # netcutter v0.2.1
 
 * Rewrite the edge-swapping algorithm in C++ (it's now 20 times faster).

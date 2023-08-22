@@ -76,7 +76,7 @@ Note that, in the current implementation, each parallel computation makes a copy
 Making copies can speed things up a little, but can be memory-expensive.
 For this reason, we also provide the `n_batches` argument, to split the computations into smaller chunks.
 If your RAM explodes, try increasing `n_batches`.
-If you have infinite resources, set it to 1 for maximum speed.
+If you have infinite resources, set it to 1 for maximum speed and efficiency.
 
 In version 0.2.1, nc_randomise() was reimplemented with `Rcpp`, making it about 20 times faster.
 However, Rcpp still uses a random sampler that has been deprecated in R (see [here](https://stackoverflow.com/questions/60119621/get-the-same-sample-of-integers-from-rcpp-as-base-r)).
@@ -92,9 +92,10 @@ It has additional arguments to specify which modules to consider for co-occurren
 For example, with `module_size = 2`, we analyse co-occurrence of pairs, with `module_size = 3`, we focus on triplets, and so on.
 `min_occurrences` is the minimum number of containers that any term should be part of, otherwise it's not considered.
 For example, the term "gene4" occurs in 1 container, while "gene2" occurs in 2; with a `min_occurrences = 2`, no module could contain "gene4".
+If you are only interested in the co-occurrences of a subset of terms, you can list them in the `terms_of_interest` argument: only modules containing those terms will be considered.
 `min_support` is the minimum number of containers that any valid module should be part of as a whole.
 For example, the pair "gene5-gene6" does not co-occur in any container, so its support is 0.
-Note that negative co-occurrence, *i.e.* occurring together in fewer containers than expected by chance, can also be interesting in some cases.
+Note that negative co-occurrence, *i.e.* occurring together in fewer containers than expected by chance, can also be interesting, in which case setting a `min_support` would be detrimental.
 At any rate, `nc_eval()` will return a `data.frame` with one row for each module, and corresponding columns for the support of that module and the p-value.
 Modules below the `min_support` threshold will have `NA` as p-value.
 As with `nc_occ_probs()`, the `mc.cores` argument is also supported; setting it to a high value could speed-up computations for larger problems.
