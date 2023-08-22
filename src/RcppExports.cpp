@@ -11,12 +11,12 @@ Rcpp::Rostream<false>& Rcpp::Rcerr = Rcpp::Rcpp_cerr_get();
 #endif
 
 // randomize
-LogicalMatrix randomize(NumericMatrix occ_matrix, unsigned int S);
+LogicalMatrix randomize(LogicalMatrix occ_matrix, unsigned int S);
 RcppExport SEXP _netcutter_randomize(SEXP occ_matrixSEXP, SEXP SSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
-    Rcpp::traits::input_parameter< NumericMatrix >::type occ_matrix(occ_matrixSEXP);
+    Rcpp::traits::input_parameter< LogicalMatrix >::type occ_matrix(occ_matrixSEXP);
     Rcpp::traits::input_parameter< unsigned int >::type S(SSEXP);
     rcpp_result_gen = Rcpp::wrap(randomize(occ_matrix, S));
     return rcpp_result_gen;

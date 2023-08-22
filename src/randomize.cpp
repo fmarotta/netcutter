@@ -3,8 +3,11 @@
 using namespace Rcpp;
 using namespace std;
 
+// TODO: use a sparse matrix for m and mask.
+// maybe a custom structure where all the elements in a row AND in a column are easily accessible.
+
 // [[Rcpp::export]]
-LogicalMatrix randomize(NumericMatrix occ_matrix, unsigned int S) {
+LogicalMatrix randomize(LogicalMatrix occ_matrix, unsigned int S) {
   // NOTE: We need to use RNGkind(sample.kind = "Rounding") to get the same results. Rcpp only uses rounding, R can also use Rejection, which is better.
   LogicalMatrix m(clone(occ_matrix));
   LogicalMatrix mask(m.nrow(), m.ncol());
@@ -34,10 +37,17 @@ LogicalMatrix randomize(NumericMatrix occ_matrix, unsigned int S) {
     source = pool[sample(mask_size, 1)[0] - 1];
     r = source % m_nrow;
     c = source / m_nrow;
+    // We have to sample a source and a target such that they are the vertices
+    // of a rectangle whose other two vertices are FALSE. In other words, after
+    // we choose the source, the target cannot be in a row where the source's
+    // column has true, and it cannot be in a column where the source's row has
+    // true.
+    // Iterating in this weird way is almost two times faster than iterating
+    // by rows and columns with m(i, j)
     // Rcout << "source: " << r+1 << " " << c + 1 << endl;
     for (k = c * m_nrow, i = 0; i < m_nrow; ++k, ++i) {
       if (m[k]) {
-        for (l = i; l < m.size(); l += m_nrow) {
+        for (l = i; l < m_size; l += m_nrow) {
           if (mask[l]) {
             mask[l] = false;
             --mask_size;
@@ -45,11 +55,10 @@ LogicalMatrix randomize(NumericMatrix occ_matrix, unsigned int S) {
         }
       }
     }
-    // It's quite common to have terms in all container, hence this shortcut.
     if (!mask_size) {
       continue;
     }
-    for (k = r, j = 0; k < m.size(); k += m_nrow, ++j) {
+    for (k = r, j = 0; k < m_size; k += m_nrow, ++j) {
       if (m[k]) {
         i = j * m_nrow;
         for (l = i; l < i + m_nrow; ++l) {
