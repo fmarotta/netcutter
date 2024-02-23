@@ -1,16 +1,434 @@
 #include <Rcpp.h>
 #include <cstdint>
+#include <cstdlib>
 #include <x86intrin.h>
 
 using namespace Rcpp;
 using namespace std;
 
 inline unsigned nthset(uint64_t x, unsigned n) {
-    return _tzcnt_u64(_pdep_u64(1ULL << n, x));
+  return _tzcnt_u64(_pdep_u64(1ULL << n, x));
 }
 
 // [[Rcpp::export]]
 LogicalMatrix randomize_bitfiddling(const LogicalMatrix occ_matrix, int S) {
+  // NOTE: XXX: this has up to 2^26 lanes and 2^32 columns (we can make it dynamic based on the lane size...)
+  const size_t lane_size = sizeof(uint64_t) * 8;
+  const size_t m_nrow = occ_matrix.nrow();
+  const size_t m_ncol = occ_matrix.ncol();
+  const size_t m_nlanes = (m_nrow + lane_size - 1) / lane_size;
+  // cout << m_nlanes << endl;
+  // cout << lane_size << endl;
+  alignas(64) vector<uint64_t> m(m_ncol * m_nlanes, 0); // alignas doesn't seem to make a difference, probably it's already aligned as 64...
+  vector<uint64_t> tempa(m_ncol);
+  vector<uint64_t> tempd(m_nlanes);
+  vector<uint64_t> col_sums(m_ncol);
+
+  uint64_t n_elements = 0;
+  for (auto it = occ_matrix.begin(); it != occ_matrix.end(); ++it) {
+    // cout << &(*it) << endl;
+    // cout << *it << endl;
+    const ldiv_t colrow = div(it - occ_matrix.begin(), m_nrow);
+    const size_t l = m_nlanes - 1 - colrow.rem / lane_size;
+    const size_t o = colrow.rem % lane_size;
+    m[colrow.quot * m_nlanes + l] |= static_cast<uint64_t>(*it) << o;
+    col_sums[colrow.quot] += *it;
+    n_elements += *it;
+  }
+  /*
+  cout << "cols" << endl;
+  for (int c = 0; c < m_ncol; ++c) {
+    cout << "col " << c << endl;
+    cout << "col sum = " << col_sums[c] << endl;
+    for (int l = 0; l < m_nlanes; ++l) {
+      cout << hex << m[c * m_nlanes + l] << dec << endl;
+    }
+  }
+  */
+
+
+  int s = 0;
+  uint64_t source_col, source_which;
+  uint64_t source_lane, source_offset;
+  uint64_t tempb, tempc;
+  vector<uint64_t> candidates;
+  uint64_t target;
+  candidates.reserve(n_elements);
+  while (s++ < S) {
+    // Sample the source (e.g. (alpha, A))
+    // It should be exactly the same as in R
+    source_which = sample(n_elements, 1)[0] - 1; // 0-based
+    // cout << "Sampled source " << source_which << endl;
+    source_col = 0; // 0-based
+    // TODO: use binary search?
+    while (source_which >= col_sums[source_col]) {
+      source_which -= col_sums[source_col++];
+    }
+    // cout << "Source col: " << source_col << endl;
+    source_col *= m_nlanes;
+
+    source_lane = m_nlanes - 1;
+    while (source_which >= __builtin_popcountll(m[source_col + source_lane])) {
+      source_which -= __builtin_popcountll(m[source_col + source_lane]);
+      --source_lane;
+    }
+    source_offset = nthset(m[source_col + source_lane], source_which);
+    /*
+    cout << "source lane: " << source_lane << endl;
+    cout << "source offset: " << source_offset << endl;
+    */
+
+    candidates.clear();
+
+    // set tempa
+    for (int col = 0; col < m_ncol; ++col) {
+      /*
+      const uint64_t tempf = ((m[collane + source_lane] >> source_offset) & 1ULL) ^ 1ULL;
+      const uint64_t col = collane / m_nlanes;
+      if (source_col / m_nlanes == col && tempf != 0) {
+        cout << "BIG BIG BIG ERROR" << endl;
+        return occ_matrix[1];
+      }
+      */
+      tempa[col] = ((m[col * m_nlanes + source_lane] >> source_offset) & 1ULL) ^ 1ULL;
+      // fill(tempa.begin() + collane, tempa.begin() + collane + m_nlanes, ((m[collane + source_lane] >> source_offset) & 1ULL) ^ 1ULL);
+    }
+    /*
+    cout << "tempa" << endl;
+    for (int i = 0; i < m_ncol * m_nlanes; ++i) {
+      cout << hex << tempa[i] << dec << endl;
+    }
+    */
+
+    // set tempd
+    for (int lane = 0; lane < m_nlanes; ++lane) {
+      tempd[lane] = ~m[source_col + lane];
+      // const uint64_t tempe = ~m[source_col + lane];
+      // for (uint64_t collane = 0; collane < m_ncol * m_nlanes; collane += m_nlanes) {
+        // tempd[collane + lane] = tempe;
+      // }
+    }
+    /*
+    cout << "tempd" << endl;
+    for (int i = 0; i < m_ncol * m_nlanes; ++i) {
+      cout << hex << tempd[i] << dec << endl;
+    }
+    */
+
+    // do
+    for (uint64_t candidate_col = 0, candidate_collane = 0; candidate_col < m_ncol; ++candidate_col) {
+      for (uint64_t candidate_lane = 0; candidate_lane < m_nlanes; ++candidate_lane, ++candidate_collane) {
+        tempb = (tempd[candidate_lane] & m[candidate_collane]) * tempa[candidate_col];
+        while (tempb != 0) {
+          tempc = tempb & -tempb;
+          const uint64_t candidate_offset = __builtin_ctzll(tempb);
+          candidates.push_back((candidate_col << 32) | (candidate_lane << 6) | candidate_offset);
+          tempb ^= tempc;
+        }
+      }
+    }
+
+    /*
+    for (uint64_t i = 0; i < m_ncol * m_nlanes; ++i) {
+      tempb = (tempd[i] & m[i]) * tempa[i];
+      while (tempb != 0) {
+        tempc = tempb & -tempb;
+        const uint64_t candidate_offset = __builtin_ctzll(tempb);
+        candidates2.push_back((i << 6) | candidate_offset);
+        tempb ^= tempc;
+      }
+    }
+    */
+
+    /*
+    for (uint64_t candidate_col = 0, candidate_collane = 0; candidate_col < m_ncol; ++candidate_col) {
+      const bool tempe = ((m[candidate_collane + source_lane] >> source_offset) & 1ULL) ^ 1ULL;
+      for (uint64_t candidate_lane = 0; candidate_lane < m_nlanes; ++candidate_lane, ++candidate_collane) {
+        if (tempe != tempa[candidate_collane]) {
+          cout << "ERROR IN TEMPAAAAAA" << endl;
+          cout << candidate_col << " " << candidate_lane << endl;
+        }
+        if (~m[source_col + candidate_lane] != tempd[candidate_collane]) {
+          cout << "ERRRO IN TEMPDDDDDD" << endl;
+          cout << candidate_col << " " << candidate_lane << endl;
+        }
+        tempb = (~m[source_col + candidate_lane] & m[candidate_collane]) * tempe;
+        if (tempb != (tempd[candidate_collane] & m[candidate_collane]) * tempa[candidate_collane]) {
+          cout << "IMPOSSIBLY BIG ERROR WHAT THE HELL" << endl;
+          return occ_matrix[1];
+        }
+        while (tempb != 0) {
+          tempc = tempb & -tempb;
+          const uint64_t candidate_offset = __builtin_ctzll(tempb);
+          candidates.push_back((candidate_col << 32) | (candidate_lane << 6) | candidate_offset);
+          tempb ^= tempc;
+        }
+      }
+    }
+    */
+
+    /*
+    cout << "Candidates2" << endl;
+    cout << candidates.size() << " vs " << candidates2.size() << endl;
+    for (int r = 0; r < candidates2.size(); ++r) {
+      const uint64_t c2_collane = candidates2[r] >> 6;
+      const uint64_t c2_offset = candidates2[r] & 0x3f;
+      const uint64_t c2_col = c2_collane / m_nlanes;
+      const uint64_t c2_lane = c2_collane % m_nlanes;
+      const uint64_t c1_col = candidates[r] >> 32;
+      const uint64_t c1_lane = (candidates[r] >> 6) & 0x3ffffff;
+      const uint64_t c1_offset = candidates[r] & 0x3f;
+
+      // cout << "c1_col " << c1_col << endl;
+      // cout << "c1_lane " << c1_lane << endl;
+      // cout << "c1_offset " << c1_offset << endl;
+      // cout << "c2_col " << c2_col << endl;
+      // cout << "c2_lane " << c2_lane << endl;
+      // cout << "c2_offset " << c2_offset << endl;
+
+      if (c1_col != c2_col || c1_lane != c2_lane || c1_offset != c2_offset) {
+        cout << "Candidates are different" << endl;
+        return occ_matrix[1];
+      }
+
+    }
+    */
+
+
+    // Sample the candidate
+    // cout << candidates.size() << endl;
+    if (candidates.size() == 0) {
+      continue;
+    }
+    // target = candidates[sample(candidates.size(), 1)[0] - 1];
+    // const uint64_t target_col = target >> 32;
+    // const uint64_t target_lane = (target >> 6 & 0x3ffffff);
+    // const uint64_t target_offset = target & 0x3f;
+    // const uint64_t target_collane = target_col * m_nlanes + target_lane;
+
+    /*
+    target = candidates2[sample(candidates2.size(), 1)[0] - 1];
+    const uint64_t target_collane = target >> 6;
+    const uint64_t target_offset = target & 0x3f;
+    const uint64_t target_lane = target_collane % m_nlanes;
+    const uint64_t target_col = target_collane / m_nlanes;
+    */
+
+    /*
+    const uint64_t target_collane = target >> 6;
+    // const int target_lane = (target >> 6) & 0x3ffffff;
+    const int target_offset = target & 0x3f;
+    */
+
+    /*
+    cout << hex << target << dec << endl;
+    cout << "Target col " << target_col << endl;
+    cout << "Target lane " << target_lane << endl;
+    cout << "Target offset " << target_offset << endl;
+    cout << "Source col " << source_col / m_nlanes << endl;
+    cout << "Source lane " << source_lane << endl;
+    cout << "Source offset " << source_offset << endl;
+    */
+
+    /*
+    // Swap
+    m[source_col + source_lane] ^= 1ULL << source_offset;
+    m[source_col + target_lane] ^= 1ULL << target_offset;
+    m[target_collane - target_lane + source_lane] ^= 1ULL << source_offset;
+    m[target_collane] ^= 1ULL << target_offset;
+    */
+
+    target = candidates[sample(candidates.size(), 1)[0] - 1];
+    const uint64_t target_col = target >> 32;
+    const uint64_t target_lane = (target >> 6) & 0x3ffffff;
+    const uint64_t target_offset = target & 0x3f;
+
+    // swap
+    m[source_col + source_lane] ^= 1ULL << source_offset;
+    m[source_col + target_lane] ^= 1ULL << target_offset;
+    m[target_col * m_nlanes + source_lane] ^= 1ULL << source_offset;
+    m[target_col * m_nlanes + target_lane] ^= 1ULL << target_offset;
+  }
+
+  return occ_matrix[1];
+}
+
+// [[Rcpp::export]]
+LogicalMatrix randomize_bitfiddling3(const LogicalMatrix occ_matrix, int S) {
+  // NOTE: XXX: this has up to 2^26 lanes and 2^32 columns (we can make it dynamic based on the lane size...)
+  const size_t lane_size = sizeof(uint64_t) * 8;
+  const size_t m_nrow = occ_matrix.nrow();
+  const size_t m_ncol = occ_matrix.ncol();
+  const size_t m_nlanes = (m_nrow + lane_size - 1) / lane_size;
+  // cout << m_nlanes << endl;
+  // cout << lane_size << endl;
+  alignas(64) vector<uint64_t> m(m_ncol * m_nlanes, 0); // alignas doesn't seem to make a difference, probably it's already aligned as 64...
+  vector<uint64_t> col_sums(m_ncol);
+
+  uint64_t n_elements = 0;
+  uint64_t n_candidates = 0;
+  for (auto it = occ_matrix.begin(); it != occ_matrix.end(); ++it) {
+    // cout << &(*it) << endl;
+    // cout << *it << endl;
+    const ldiv_t colrow = div(it - occ_matrix.begin(), m_nrow);
+    const size_t l = m_nlanes - 1 - colrow.rem / lane_size;
+    const size_t o = colrow.rem % lane_size;
+    m[colrow.quot * m_nlanes + l] |= static_cast<uint64_t>(*it) << o;
+    col_sums[colrow.quot] += *it;
+    n_elements += *it;
+  }
+  /*
+  cout << "cols" << endl;
+  for (int c = 0; c < m_ncol; ++c) {
+    cout << "col " << c << endl;
+    cout << "col sum = " << col_sums[c] << endl;
+    for (int l = 0; l < m_nlanes; ++l) {
+      cout << hex << m[c * m_nlanes + l] << dec << endl;
+    }
+  }
+  */
+
+
+  int s = 0;
+  uint64_t source_col, source_which;
+  uint64_t source_lane, source_offset;
+  uint64_t tempb, tempc;
+  vector<uint64_t> candidates;
+  uint64_t target;
+  candidates.reserve(n_elements);
+  while (s++ < S) {
+    // Sample the source (e.g. (alpha, A))
+    // It should be exactly the same as in R
+    source_which = sample(n_elements, 1)[0] - 1; // 0-based
+    // cout << "Sampled source " << source_which << endl;
+    source_col = 0; // 0-based
+    // TODO: use binary search?
+    while (source_which >= col_sums[source_col]) {
+      source_which -= col_sums[source_col++];
+    }
+    // cout << "Source col: " << source_col << endl;
+    source_col *= m_nlanes;
+
+    source_lane = m_nlanes - 1;
+    while (source_which >= __builtin_popcountll(m[source_col + source_lane])) {
+      source_which -= __builtin_popcountll(m[source_col + source_lane]);
+      --source_lane;
+    }
+    source_offset = nthset(m[source_col + source_lane], source_which);
+    /*
+    cout << "source lane: " << source_lane << endl;
+    cout << "source offset: " << source_offset << endl;
+    */
+
+    candidates.clear();
+    n_candidates = 0;
+    for (uint64_t candidate_col = 0, candidate_collane = 0; candidate_col < m_ncol; ++candidate_col) {
+      const bool tempe = ((m[candidate_collane + source_lane] >> source_offset) & 1ULL) ^ 1ULL;
+      for (uint64_t candidate_lane = 0; candidate_lane < m_nlanes; ++candidate_lane, ++candidate_collane) {
+        tempb = (~m[source_col + candidate_lane] & m[candidate_collane]) * tempe;
+        while (tempb != 0) {
+          tempc = tempb & -tempb;
+          const uint64_t candidate_offset = __builtin_ctzll(tempb);
+          // candidates.push_back((candidate_col << 32) | (candidate_lane << 6) | candidate_offset);
+          candidates[n_candidates++] = (candidate_col << 32) | (candidate_lane << 6) | candidate_offset;
+          tempb ^= tempc;
+        }
+      }
+    }
+
+    /*
+    cout << "Candidates2" << endl;
+    cout << candidates.size() << " vs " << candidates2.size() << endl;
+    for (int r = 0; r < candidates2.size(); ++r) {
+      const uint64_t c2_collane = candidates2[r] >> 6;
+      const uint64_t c2_offset = candidates2[r] & 0x3f;
+      const uint64_t c2_col = c2_collane / m_nlanes;
+      const uint64_t c2_lane = c2_collane % m_nlanes;
+      const uint64_t c1_col = candidates[r] >> 32;
+      const uint64_t c1_lane = (candidates[r] >> 6) & 0x3ffffff;
+      const uint64_t c1_offset = candidates[r] & 0x3f;
+
+      // cout << "c1_col " << c1_col << endl;
+      // cout << "c1_lane " << c1_lane << endl;
+      // cout << "c1_offset " << c1_offset << endl;
+      // cout << "c2_col " << c2_col << endl;
+      // cout << "c2_lane " << c2_lane << endl;
+      // cout << "c2_offset " << c2_offset << endl;
+
+      if (c1_col != c2_col || c1_lane != c2_lane || c1_offset != c2_offset) {
+        cout << "Candidates are different" << endl;
+        return occ_matrix[1];
+      }
+
+    }
+    */
+
+
+    // Sample the candidate
+    // cout << candidates.size() << endl;
+    if (n_candidates == 0) {
+      continue;
+    }
+    // target = candidates[sample(candidates.size(), 1)[0] - 1];
+    // const uint64_t target_col = target >> 32;
+    // const uint64_t target_lane = (target >> 6 & 0x3ffffff);
+    // const uint64_t target_offset = target & 0x3f;
+    // const uint64_t target_collane = target_col * m_nlanes + target_lane;
+    target = candidates[sample(n_candidates, 1)[0] - 1];
+    const uint64_t target_col = target >> 32;
+    const uint64_t target_lane = (target >> 6) & 0x3ffffff;
+    const uint64_t target_offset = target & 0x3f;
+
+    /*
+    const uint64_t target_collane = target >> 6;
+    // const int target_lane = (target >> 6) & 0x3ffffff;
+    const int target_offset = target & 0x3f;
+    */
+
+    /*
+    cout << hex << target << dec << endl;
+    cout << "Target col " << target_col << endl;
+    cout << "Target lane " << target_lane << endl;
+    cout << "Target offset " << target_offset << endl;
+    cout << "Source col " << source_col / m_nlanes << endl;
+    cout << "Source lane " << source_lane << endl;
+    cout << "Source offset " << source_offset << endl;
+    */
+
+    // Swap
+    m[source_col + source_lane] ^= 1ULL << source_offset;
+    m[source_col + target_lane] ^= 1ULL << target_offset;
+    m[target_col * m_nlanes + source_lane] ^= 1ULL << source_offset;
+    m[target_col * m_nlanes + target_lane] ^= 1ULL << target_offset;
+
+  }
+
+  return occ_matrix[1];
+}
+
+/***R
+m <- t(sapply(1:80, function(row) {
+  nt <- sample(1:4, 1)
+  row <- rep(F, 5)
+  row[sample(5, nt)] <- T
+  row
+}))
+m <- matrix(0, 2, 6)
+m[1, c(1, 4, 6)] <- 1
+m[2, c(3, 4, 5)] <- 1
+m <- matrix(3, 5)
+randomize_bitfiddling3(m, 10000)
+
+start_profiler("bitfiddling3.out")
+randomize_bitfiddling3(m, 100000)
+stop_profiler()
+
+
+*/
+
+
+// [[Rcpp::export]]
+LogicalMatrix randomize_bitfiddling2(const LogicalMatrix occ_matrix, int S) {
   const int lane_size = sizeof(uint64_t) * 8;
   size_t m_nrow = occ_matrix.nrow();
   size_t m_ncol = occ_matrix.ncol();
@@ -49,7 +467,8 @@ LogicalMatrix randomize_bitfiddling(const LogicalMatrix occ_matrix, int S) {
   int s = 0;
   int source_col, source_row;
   int source_lane, source_wlc;
-  uint64_t tempa, tempb, tempc;
+  bool tempa;
+  uint64_t tempb, tempc;
   vector<uint64_t> candidates;
   uint64_t target;
   while (s++ < S) {
@@ -148,24 +567,23 @@ LogicalMatrix randomize_bitfiddling(const LogicalMatrix occ_matrix, int S) {
     rows[(target >> 42) & mask][(target >> 21) & mask] ^= 1ULL << (target & mask);
   }
 
-  return occ_matrix;
+  return occ_matrix[1];
 }
 
 /***R
-m <- sapply(1:80, function(row) {
+m <- t(sapply(1:80, function(row) {
   nt <- sample(1:4, 1)
   row <- rep(F, 5)
   row[sample(5, nt)] <- T
   row
-})
+}))
 m <- matrix(0, 2, 6)
 m[1, c(1, 4, 6)] <- 1
 m[2, c(3, 4, 5)] <- 1
 m <- matrix(3, 5)
-randomize_bitfiddling(m, 1000)
+randomize_bitfiddling2(m, 100000)
 */
 
-/*
 // [[Rcpp::export]]
 LogicalMatrix randomize2(LogicalMatrix occ_matrix, int S) {
   // NOTE: We need to use RNGkind(sample.kind = "Rounding") to get the same results. Rcpp only uses rounding, R can also use Rejection, which is better.
@@ -280,7 +698,6 @@ LogicalMatrix randomize2(LogicalMatrix occ_matrix, int S) {
   }
   return m;
 }
-*/
 
 /***R
 m <- matrix(FALSE, 3, 9, dimnames = list(paste0("ID", 1:3), paste0("gene", 1:9)))
@@ -291,9 +708,6 @@ randomize2(m, 1)
 
 // [[Rcpp::export]]
 LogicalMatrix randomize(LogicalMatrix occ_matrix, unsigned int S) {
-  return occ_matrix;
-}
-/*
   // NOTE: We need to use RNGkind(sample.kind = "Rounding") to get the same results. Rcpp only uses rounding, R can also use Rejection, which is better.
   LogicalMatrix m(clone(occ_matrix));
   LogicalMatrix mask(m.nrow(), m.ncol());
@@ -372,7 +786,6 @@ LogicalMatrix randomize(LogicalMatrix occ_matrix, unsigned int S) {
   }
   return m;
 }
-*/
 
 /*** R
 set.seed(20, "L'Ecu", sample.kind = "Rounding")
@@ -397,6 +810,10 @@ huge <- t(sapply(1:100, function(row) {
   row[sample(1000, nt)] <- T
   row
 }))
-microbenchmark(nc_randomize_R(huge, 100), randomize_bitfiddling(huge, 100), times = 10)
+microbenchmark(nc_randomize_R(huge, 100), randomize_bitfiddling2(huge, 100), times = 10)
+microbenchmark(randomize_bitfiddling2(huge, 1000), randomize_bitfiddling(huge, 1000), times = 10)
+microbenchmark(randomize_bitfiddling2(huge, 1000), randomize_bitfiddling3(huge, 1000), times = 10)
+microbenchmark(randomize_bitfiddling2(huge, 1000), randomize2(huge, 1000), times = 10)
+microbenchmark(randomize_bitfiddling2(huge, 1000), randomize(huge, 1000), times = 10)
 
 */
