@@ -31,4 +31,6 @@ devtools::install_github("fmarotta/netcutter")
 
 <!-- badges: start -->
 [![R-CMD-check](https://github.com/fmarotta/netcutter/actions/workflows/check-standard.yaml/badge.svg)](https://github.com/fmarotta/netcutter/actions/workflows/check-standard.yaml)
+[![R-CMD-check](https://github.com/fmarotta/netcutter/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/fmarotta/netcutter/actions/workflows/R-CMD-check.yaml)
+[![Codecov test coverage](https://codecov.io/gh/fmarotta/netcutter/graph/badge.svg)](https://app.codecov.io/gh/fmarotta/netcutter)
 <!-- badges: end -->

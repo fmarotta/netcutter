@@ -3,5 +3,6 @@
 ^LICENSE\.md$
 ^cran-comments\.md$
 ^doc$
+^library$
 ^Meta$
 ^\.github$
