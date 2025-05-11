@@ -54,7 +54,7 @@ print(occ_matrix)
 ## `nc_occ_probs()`
 
 As a first step, we need to compute the occurrence probabilities under the null distribution.
-This is the most time-consuming step, but it can be parallelised on Linux and Mac.^[Internally, `nc_occ_probs()` uses `mclapply()`.]
+This is usually the most time-consuming step, but it can be parallelised on Linux and Mac.^[Internally, `nc_occ_probs()` uses `mclapply()`.]
 It entails randomising the occurrence matrix `R` times, each time performing `S` edge swap operations.
 `S` should be significantly higher than the number of edges to make sure that we do a proper randomisation.
 Of note, we have to use a special random number generator that is particularly suitable for parallel computations, the "L'Ecuyer-CMRG".^[Check the documentation of `RNGkind()` and `parallel::mcparallel()` for the reasons why.]
@@ -72,16 +72,11 @@ print(occ_probs)
 ```
 
 Use the `mc.cores` argument to select the number of parallel computations.
-Note that, in the current implementation, each parallel computation makes a copy of the occurrence matrix, so memory could become a concern for bigger matrices.
+Note that, in the current implementation, each parallel computation necessarily makes a copy of the occurrence matrix, so memory could become a concern for bigger matrices.
 Making copies can speed things up a little, but can be memory-expensive.
 For this reason, we also provide the `n_batches` argument, to split the computations into smaller chunks.
 If your RAM explodes, try increasing `n_batches`.
 If you have infinite resources, set it to 1 for maximum speed and efficiency.
-
-In version 0.2.1, nc_randomise() was reimplemented with `Rcpp`, making it about 20 times faster.
-However, Rcpp still uses a random sampler that has been deprecated in R (see [here](https://stackoverflow.com/questions/60119621/get-the-same-sample-of-integers-from-rcpp-as-base-r)).
-The bias should be noticeable only for large occurrence matrices, but it will be there until someone fixes the Rcpp implementation.
-Note for developers: to compare the R and Rcpp implementations, you should set `RNGking(sample.kind = "Rounding")`.
 
 ## `nc_eval()`
 

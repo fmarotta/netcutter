@@ -1,19 +1,20 @@
 library(microbenchmark)
 library(ggplot2)
+library(R.utils)
 library(data.table)
 
 # Generate matrices of various size and density and benchmark our
 # implementations.
 
 Density <- seq(0.2, 0.95, 0.15)
-MatrixSize <- 36^seq(1, 3.5, 0.5)
-SampleSize <- 10^(1:4)
-Algorithm <- c("nc_randomize_R")
+MatrixSize <- 36^seq(1, 2.5, 0.5)
+SampleSize <- 10^(1:3)
+Algorithm <- c("nc_randomize_R", "nc_randomize_fast")
 
 Density <- seq(0.2, 0.95, 0.30)
 MatrixSize <- 36^(1:2)
 SampleSize <- 10^(1:2)
-Algorithm <- c("nc_randomize_R")
+Algorithm <- c("nc_randomize_R", "nc_randomize_fast")
 
 # we need matrices where each row and column has at least one T... difficult to do with low densities.
 
@@ -36,7 +37,10 @@ d <- rbindlist(lapply(Density, function(d) {
               times = 10
             ))[, as.list(summary(time)), by = expr],
             timeout = 10),
-          error = function(e) NULL
+          error = function(e) {
+            message(e, "\n")
+            return(NULL)
+          }
         )
       }), idcol = "algorithm", fill = T)
     }), idcol = "sample_size", fill = T)
@@ -44,10 +48,17 @@ d <- rbindlist(lapply(Density, function(d) {
 }), idcol = "density", fill = T)
 # d$matrix_size <- factor(d$matrix_size)
 
-ggplot(d, aes(x = matrix_size, y = Median, color = sample_size)) +
+ggplot(d) +
+  aes(
+    x = MatrixSize[matrix_size],
+    y = Median,
+    color = SampleSize[sample_size],
+    shape = Algorithm[algorithm],
+    linetype = Algorithm[algorithm],
+  ) +
   geom_point() +
-  geom_line(aes(group = sample_size), orientation = "x") +
-  facet_grid(rows = vars(expr), cols = vars(density)) +
+  geom_line(aes(group = paste(sample_size, algorithm)), orientation = "x") +
+  facet_grid(rows = vars(expr), cols = vars(Density[density])) +
   scale_color_viridis_c() +
   NULL
 

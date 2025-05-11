@@ -1,23 +1,11 @@
 #' Randomize the occurrence matrix
 #'
-#' Apply an edge-swapping algorithm.
-#'
-#' @param occ_matrix The original occurrence matrix.
-#' @param S The number of successful edge swaps to perform.
-#'
-#' @return A randomized copy of the occurrence matrix.
-nc_randomize <- function(occ_matrix, S) {
-  stopifnot(S >= 0)
-  .Call(`_netcutter_randomize`, occ_matrix, S)
-}
-
-#' Randomize the occurrence matrix
-#'
 #' Old implementation in pure R, kept for testing purposes and for
 #' reproducibility of old results.
 #'
 #' @inheritParams nc_randomize
 nc_randomize_R <- function(occ_matrix, S) {
+  stopifnot(S > 0)
   # Create a copy of the original matrix
   m <- matrix(occ_matrix, nrow(occ_matrix), ncol(occ_matrix))
   l <- length(m)
@@ -43,20 +31,73 @@ nc_randomize_R <- function(occ_matrix, S) {
 
 #' Randomize the occurrence matrix
 #'
+#' Faster implementation that samples row and column independently
+#'
+#' @inheritParams nc_randomize
+nc_randomize_fast <- function(occ_matrix, S) {
+  stopifnot(S > 0)
+  # Create a copy of the original matrix
+  # (I don't think it's needed, R will do it anyway, but maybe better to not depend on this behaviour)
+  m <- matrix(occ_matrix, nrow(occ_matrix), ncol(occ_matrix))
+  d <- nrow(m)
+  s <- 1L
+  while (s <= S) {
+    # Choose the first edge at random and the second among the "compatible ones"
+    # Choose the row first, then the column
+    source_row <- sample.int(d, 1L)
+    source_col_candidates <- which(m[source_row, ])
+    if (!length(source_col_candidates)) {
+      # This list has no items
+      next()
+    }
+    source_col <- safe_sample(source_col_candidates)
+    target_row_candidates <- which(!m[, source_col])
+    if (!length(target_row_candidates)) {
+      # This source edge has no compatible targets
+      next()
+    }
+    target_row <- safe_sample(target_row_candidates)
+    target_col_candidates <- which(m[target_row, ] & !m[source_row, ])
+    if (!length(target_col_candidates)) {
+      # This source edge has no compatible targets
+      next()
+    }
+    target_col <- safe_sample(target_col_candidates)
+    m[source_row, source_col] <- m[target_row, target_col] <- FALSE
+    m[source_row, target_col] <- m[target_row, source_col] <- TRUE
+    s <- s + 1L
+  }
+  m
+}
+
+#' Randomize the occurrence matrix
+#'
+#' Apply an edge-swapping algorithm.
+#'
+#' @param occ_matrix The original occurrence matrix.
+#' @param S The number of successful edge swaps to perform.
+#'
+#' @return A randomized copy of the occurrence matrix.
+nc_randomize <- nc_randomize_fast
+
+#' Randomize the occurrence matrix
+#'
 #' This is a simpler implementation used to check that the official
 #' implementation ([nc_randomize()]) works well.
 #'
 #' @inheritParams nc_randomize
 nc_randomize_simple <- function(occ_matrix, S) {
+  stopifnot(S > 0)
   # Create a copy of the original matrix
   m <- matrix(occ_matrix, nrow(occ_matrix), ncol(occ_matrix))
   for (s in seq_len(S)) {
-    es <- sapply(sample(which(m), 2), arrayInd, dim(m))
+    all_edges <- which(m)
+    es <- sapply(sample(all_edges, 2), arrayInd, dim(m))
     while (m[es[1, 2], es[2, 1]] || m[es[1, 1], es[2, 2]]) {
-      es <- sapply(sample(which(m), 2), arrayInd, dim(m))
+      es <- sapply(sample(all_edges, 2), arrayInd, dim(m))
     }
-    m[es[1, 1], es[2, 1]] <- m[es[1, 2], es[2, 2]] <- F
-    m[es[1, 1], es[2, 2]] <- m[es[1, 2], es[2, 1]] <- T
+    m[es[1, 1], es[2, 1]] <- m[es[1, 2], es[2, 2]] <- FALSE
+    m[es[1, 1], es[2, 2]] <- m[es[1, 2], es[2, 1]] <- TRUE
   }
   m
 }
@@ -153,10 +194,10 @@ nc_define_modules <- function(occ_matrix, terms_of_interest, module_size, min_oc
       stop("`terms_of_interest` must be valid column names or indices for `occ_matrix`.")
     }
     other_terms <- setdiff(valid_terms, terms_of_interest)
-    M <- combn(terms_of_interest, module_size, simplify = F)
+    M <- utils::combn(terms_of_interest, module_size, simplify = F)
     for (ms in seq_len(module_size - 1)) {
-      toi_combn <- combn(terms_of_interest, ms, simplify = F)
-      other_combn <- combn(other_terms, module_size - ms, simplify = F)
+      toi_combn <- utils::combn(terms_of_interest, ms, simplify = F)
+      other_combn <- utils::combn(other_terms, module_size - ms, simplify = F)
       M <- c(M, unlist(lapply(toi_combn, function(toi) lapply(other_combn, function(o) c(toi, o))), recursive = F))
     }
   } else {
@@ -254,3 +295,15 @@ generate_seeds <- function(n) {
     seeds[[i+1]] <- parallel::nextRNGStream(seeds[[i]])
   seeds
 }
+
+#' Sample one item from a vector, even when the vector has length 1
+#'
+#' @param x Vector of values to sample
+#'
+#' @return One value from `x`.
+#'
+#' @details When `x` has length 1, the sample() function thinks that we want to
+#'     sample from 1 to `x`. However, we deal want to sample vectors of unknown
+#'     length, and possibly of length 1, but we always want to sample among
+#'     the values of `x`. This function ensures that.
+safe_sample <- function(x) x[sample.int(length(x), 1L)]

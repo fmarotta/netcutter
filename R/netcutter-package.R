@@ -1,8 +1,8 @@
 #' @keywords internal
 "_PACKAGE"
 
-## usethis namespace: start
-#' @importFrom Rcpp sourceCpp
-#' @useDynLib netcutter, .registration = TRUE
-## usethis namespace: end
-NULL
+# ## usethis namespace: start
+# #' @importFrom Rcpp sourceCpp
+# #' @useDynLib netcutter, .registration = TRUE
+# ## usethis namespace: end
+# NULL
