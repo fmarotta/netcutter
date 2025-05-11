@@ -1,6 +1,10 @@
 # netcutter development version
 
+# netcutter v0.3.0
+
 * Introduce the `terms_of_interest` argument of nc_eval().
+* Realize that the C++ speedup only worked for small-size matrices
+* Devise algorithm that scales as (N + M) rather than (N * M), consequently drop Rcpp
 
 # netcutter v0.2.1
 
