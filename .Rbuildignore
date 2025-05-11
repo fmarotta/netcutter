@@ -4,5 +4,6 @@
 ^cran-comments\.md$
 ^doc$
 ^library$
+^benchmarks$
 ^Meta$
 ^\.github$

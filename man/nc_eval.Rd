@@ -60,6 +60,6 @@ nc_eval(m, occ_probs, module_size = 2)
 # Now evaluate triples; no need to recompute the occurrence probabilities.
 nc_eval(m, occ_probs, module_size = 3)
 # Now consider only modules involving gene1 or gene2.
-nc_eval(m, occ_probs, module_size = 3, terms_of_interest = c("gene1", "gene2"))
+nc_eval(m, occ_probs, module_size = 2, terms_of_interest = c("gene1", "gene2"))
 
 }

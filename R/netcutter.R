@@ -248,7 +248,7 @@ nc_define_modules <- function(occ_matrix, terms_of_interest, module_size, min_oc
 #' # Now evaluate triples; no need to recompute the occurrence probabilities.
 #' nc_eval(m, occ_probs, module_size = 3)
 #' # Now consider only modules involving gene1 or gene2.
-#' nc_eval(m, occ_probs, module_size = 3, terms_of_interest = c("gene1", "gene2"))
+#' nc_eval(m, occ_probs, module_size = 2, terms_of_interest = c("gene1", "gene2"))
 #'
 #' @importFrom PoissonBinomial ppbinom dpbinom
 #' @export
