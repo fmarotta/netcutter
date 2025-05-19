@@ -2,7 +2,9 @@
 
 # netcutter v0.3.1
 
-* Use `rlecuyer` package to generate random numbers
+* Use `rlecuyer` package to generate random numbers (avoids polluting the global environment)
+* Fix automatic url in DESCRIPTION
+* Use TRUE/FALSE instead of T/F
 
 # netcutter v0.3.0
 

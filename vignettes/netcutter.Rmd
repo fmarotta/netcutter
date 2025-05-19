@@ -14,11 +14,7 @@ knitr::opts_chunk$set(
 )
 ```
 
-```{r setup}
-library(netcutter)
-```
-
-# Introduction
+## Introduction
 
 This is an R implementation of the NetCutter method described in [Identification and Analysis of Co-Occurrence Networks with NetCutter](https://doi.org/10.1371/journal.pone.0003178) by Heiko Müller and Francesco Mancuso.
 Co-occurrence analysis is used to find groups of terms that occur together in more (or fewer) containers than you would expect by chance.
@@ -26,17 +22,22 @@ For instance, the terms could be words and the containers could be articles: two
 The approach used by NetCutter to evaluate the statistical significance of co-occurrences is to apply a randomisation procedure to the occurrence matrix to obtain the occurrence probabilities under the null distribution, then use the [Poisson-Binomial distribution](https://en.wikipedia.org/wiki/Poisson_binomial_distribution) to compute a p-value for the actual number of occurrences.
 The randomisation procedure, based on edge-swapping, approximates the more rigorous approach, which requires generating all the edge permutations of the occurrence graph and is therefore computationally intractable.
 
-## NOTE
+### NOTE
 
 I have made reasonable efforts to contact the original authors of the paper, but haven't heard from them so far.
 They are also listed as authors of this R package because they came up with the original idea (all the credit goes to them).
-I am just a dude who liked the paper and, not finding any other implementation, decided to write an R package (all mistakes and bugs are due to me, not to the original authors).
+I just liked the paper and, not finding any other implementation, decided to write an R package (all mistakes and bugs are due to me, not to the original authors).
 
-# Usage
+## Usage
 
 There are two main functions in the package: `nc_occ_probs()` and `nc_eval()`.
+Let's start by loading the package.
 
-## Data preparation
+```{r}
+library(netcutter)
+```
+
+### Data preparation
 
 The ultimate input for the package is an occurrence matrix, *i.e.* a matrix with as many rows as containers, as many columns as terms, and Boolean entries indicating whether a term is found in a container.
 The matrix can of course be interpreted as a graph.
@@ -51,7 +52,7 @@ occ_matrix[1, 1:3] <- occ_matrix[2, c(1:2, 4:5)] <- occ_matrix[3, c(1, 6:9)] <- 
 print(occ_matrix)
 ```
 
-## `nc_occ_probs()`
+### `nc_occ_probs()`
 
 As a first step, we need to compute the occurrence probabilities under the null distribution.
 This is usually the most time-consuming step, but it can be parallelised on Linux and Mac.^[Internally, `nc_occ_probs()` uses `mclapply()`.]
@@ -78,7 +79,7 @@ For this reason, we also provide the `n_batches` argument, to split the computat
 If your RAM explodes, try increasing `n_batches`.
 If you have infinite resources, set it to 1 for maximum speed and efficiency.
 
-## `nc_eval()`
+### `nc_eval()`
 
 Once we have the occurrence probabilities, we can evaluate the p-values.
 The function is `nc_eval()`, and it can be called several times with different parameters but re-using the same `occ_probs` matrix.
@@ -104,3 +105,4 @@ print(nc)
 Note that `nc_eval()` will return, in addition to the support `k`, two probabilities.
 `Pr(==k)` is the probability that this module be found in exactly `k` containers under the null hypothesis; `Pr(>=k)` is the one-sides p-value, or the probability that this module be found in `k` or more containers under the null hypothesis.
 Negative co-occurrence, that is, when a module occurs less often than expected, indicating that the terms are somewhat "mutually exclusive", can be evaluated by computing `Pr(<=k)` as `1 - Pr(>=k) + Pr(==k)`.
+Don't forget to adjust the p-values for multiple testing.

@@ -10,7 +10,7 @@ The randomisation procedure, based on edge-swapping, approximates the more rigor
 
 I have made reasonable efforts to contact the original authors of the paper, but haven't heard from them so far.
 They are also listed as authors of this R package because they came up with the original idea (all the credit goes to them).
-I am just a dude who liked the paper and, not finding any other implementation, decided to write an R package (all mistakes and bugs are due to me, not to the original authors).
+I just liked the paper and, not finding any other implementation, decided to write an R package (all mistakes and bugs are due to me, not to the original authors).
 
 ## Installation
 

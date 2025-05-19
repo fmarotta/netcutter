@@ -1,13 +1,19 @@
 ## R CMD check results
 
-0 errors | 0 warnings | 5 notes
+0 errors | 0 warnings | 2 notes
 
 * This is a new release.
 
-* Possibly misspelled words in DESCRIPTION (I checked and they are not typos)
-
-* Found the following non-standard file in the check directory: ''NULL''
-
-* Found the following detritus in the temp directory: 'lastMiKTeXException'
+* Checks complain about a possibly invalid URL to stackoverflow, possibly because the site is using Cloudflare to verify that a human is accessing it.
 
 * Skipping checking HTML validation: no command 'tidy' found
+
+## Addressing CRAN comments
+
+* References in the DESCRIPTION were formatted as requested
+
+* Redundant R in the DESCRIPTION was removed
+
+* T and F were converted to TRUE and FALSE
+
+* The global environment is no longer modified
