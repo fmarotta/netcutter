@@ -57,14 +57,14 @@ As a first step, we need to compute the occurrence probabilities under the null 
 This is usually the most time-consuming step, but it can be parallelised on Linux and Mac.^[Internally, `nc_occ_probs()` uses `mclapply()`.]
 It entails randomising the occurrence matrix `R` times, each time performing `S` edge swap operations.
 `S` should be significantly higher than the number of edges to make sure that we do a proper randomisation.
-Of note, we have to use a special random number generator that is particularly suitable for parallel computations, the "L'Ecuyer-CMRG".^[Check the documentation of `RNGkind()` and `parallel::mcparallel()` for the reasons why.]
-Even if we don't use parallel computations, we'd better set this RNG to make sure that our results are reproducible by someone who does want to use parallelism.
-We don't have to set a seed (although we could, too), just the `RNGkind()`; R will generate a seed automatically for us anyway.
+Of note, we have to use a special random number generator that is particularly suitable for parallel computations, the "L'Ecuyer" generator.^[Check the documentation of `RNGkind()` and `parallel::mcparallel()` for the reasons why.]
+For convenience, netcutter relies on another package, [rlecuyer](https://cran.r-project.org/package=rlecuyer), to generate random streams of numbers.
+If we want to set a seed to make results reproducible, we need to do it through the `rlecuyer` package, as shown below.
 
 ```{r}
-RNGkind("L'Ecuyer-CMRG")
-# alternatively, to set a specific seed, uncomment the line below
-# set.seed(42, "L'Ecuyer-CMRG")
+# Set a seed with rlecuyer. The function expects a vector of 6 integers.
+# NOTE: The usual set.seed() won't work!
+rlecuyer::.lec.SetPackageSeed(c(19, 42, 54, 17, 7, 7, 2))
 n_edges <- sum(occ_matrix)
 occ_probs <- nc_occ_probs(occ_matrix, R = 100, S = n_edges * 20)
 

@@ -6,7 +6,7 @@
 \alias{netcutter-package}
 \title{netcutter: Identification and Analysis of Co-Occurrence Networks}
 \description{
-R implementation of the NetCutter algorithm described in "H. Müller, F. Mancuso, Identification and analysis of co-occurrence networks with NetCutter. PLoS ONE 3, e3178 (2008)." The package identifies co-occurring terms in a list of containers. For example, it may be used to detect genes that co-occur across genomes.
+Implementation of the NetCutter algorithm described in Müller and Mancuso (2008) \doi{10.1371/journal.pone.0003178}. The package identifies co-occurring terms in a list of containers. For example, it may be used to detect genes that co-occur across genomes.
 }
 \seealso{
 Useful links:

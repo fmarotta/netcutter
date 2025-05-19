@@ -1,6 +1,6 @@
 test_that("randomization works", {
-  m <- matrix(F, nrow = 3, ncol = 9, dimnames = list(paste0("PMID", 1:3), paste0("gene", 1:9)))
-  m[1, 1:3] <- m[2, c(1:2, 4:5)] <- m[3, c(1, 6:9)] <- T
+  m <- matrix(FALSE, nrow = 3, ncol = 9, dimnames = list(paste0("PMID", 1:3), paste0("gene", 1:9)))
+  m[1, 1:3] <- m[2, c(1:2, 4:5)] <- m[3, c(1, 6:9)] <- TRUE
   set.seed(1)
   m_random <- nc_randomize_fast(m, 100)
 
@@ -40,8 +40,8 @@ test_that("randomization works", {
 })
 
 test_that("occurrence probabilities make sense", {
-  m <- matrix(F, nrow = 3, ncol = 9, dimnames = list(paste0("PMID", 1:3), paste0("gene", 1:9)))
-  m[1, 1:3] <- m[2, c(1:2, 4:5)] <- m[3, c(1, 6:9)] <- T
+  m <- matrix(FALSE, nrow = 3, ncol = 9, dimnames = list(paste0("PMID", 1:3), paste0("gene", 1:9)))
+  m[1, 1:3] <- m[2, c(1:2, 4:5)] <- m[3, c(1, 6:9)] <- TRUE
 
   # The complexity of n_batches shouldn't affect the end result
   set.seed(1, "L'Ecuyer-CMRG")
@@ -64,8 +64,8 @@ test_that("occurrence probabilities make sense", {
 })
 
 test_that("we can list all possible modules", {
-  m <- matrix(F, nrow = 3, ncol = 9, dimnames = list(paste0("PMID", 1:3), paste0("gene", 1:9)))
-  m[1, 1:3] <- m[2, c(1:2, 4:5)] <- m[3, c(1, 6:9)] <- T
+  m <- matrix(FALSE, nrow = 3, ncol = 9, dimnames = list(paste0("PMID", 1:3), paste0("gene", 1:9)))
+  m[1, 1:3] <- m[2, c(1:2, 4:5)] <- m[3, c(1, 6:9)] <- TRUE
 
   # With a size of 2, we expect choose(ncol(m), 2) possible modules.
   modules_two <- nc_define_modules(m, terms_of_interest = NULL, module_size = 2, min_occurrences = 0)
@@ -88,8 +88,8 @@ test_that("we can list all possible modules", {
 })
 
 test_that("we can compute co-occurrence probabilities", {
-  m <- matrix(F, nrow = 3, ncol = 9, dimnames = list(paste0("PMID", 1:3), paste0("gene", 1:9)))
-  m[1, 1:3] <- m[2, c(1:2, 4:5)] <- m[3, c(1, 6:9)] <- T
+  m <- matrix(FALSE, nrow = 3, ncol = 9, dimnames = list(paste0("PMID", 1:3), paste0("gene", 1:9)))
+  m[1, 1:3] <- m[2, c(1:2, 4:5)] <- m[3, c(1, 6:9)] <- TRUE
   occ_probs <- nc_occ_probs(m, R = 20, S = 50)
 
   nc <- nc_eval(m, occ_probs, module_size = 2)
@@ -112,11 +112,29 @@ test_that("generating random seeds works", {
   expect_true(length(generate_seeds(1)) == 1)
 })
 
+test_that("setting the seed works", {
+  RNGkind("L'Ecu")
+  test_rng <- function(r) {
+    ans <- sample(5)
+  }
+  R <- 3
+  set.seed(1)
+  rlecuyer:::.lec.SetPackageSeed(sample(100, 6))
+  rlecuyer:::.lec.CreateStream(seq_len(R))
+  res <- parallel::mclapply(seq_len(R), mc.cores = 3, function(r) {
+    oldkind <- rlecuyer:::.lec.CurrentStream(r)
+    ans <- test_rng(r)
+    rlecuyer:::.lec.CurrentStreamEnd(oldkind)
+    ans
+  })
+  rlecuyer:::.lec.DeleteStream(seq_len(R))
+})
+
 test_that("parallelisation works (not on windows)", {
   skip_on_os("windows")
 
-  m <- matrix(F, nrow = 3, ncol = 9, dimnames = list(paste0("PMID", 1:3), paste0("gene", 1:9)))
-  m[1, 1:3] <- m[2, c(1:2, 4:5)] <- m[3, c(1, 6:9)] <- T
+  m <- matrix(FALSE, nrow = 3, ncol = 9, dimnames = list(paste0("PMID", 1:3), paste0("gene", 1:9)))
+  m[1, 1:3] <- m[2, c(1:2, 4:5)] <- m[3, c(1, 6:9)] <- TRUE
 
   # The complexity of mc.cores and n_batches shouldn't affect the end result
   set.seed(1, "L'Ecuyer-CMRG")

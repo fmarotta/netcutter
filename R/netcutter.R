@@ -15,15 +15,15 @@ nc_randomize_R <- function(occ_matrix, S) {
     # Choose the first edge at random and the second among the "compatible ones"
     source <- arrayInd(sample((1:l)[m], 1), d)
     mask <- m
-    mask[, which(m[source[1], ])] <- F
-    mask[which(m[, source[2]]), ] <- F
+    mask[, which(m[source[1], ])] <- FALSE
+    mask[which(m[, source[2]]), ] <- FALSE
     if (sum(mask) == 0) {
       # This source edge has no compatible targets
       next()
     }
     target <- arrayInd(sample((1:l)[mask], 1), d)
-    m[source[1], source[2]] <- m[target[1], target[2]] <- F
-    m[source[1], target[2]] <- m[target[1], source[2]] <- T
+    m[source[1], source[2]] <- m[target[1], target[2]] <- FALSE
+    m[source[1], target[2]] <- m[target[1], source[2]] <- TRUE
     s <- s + 1
   }
   m
@@ -122,8 +122,8 @@ nc_randomize_simple <- function(occ_matrix, S) {
 #' # Generate an occurrence matrix.
 #' m <- matrix(FALSE, 3, 9, dimnames = list(paste0("ID", 1:3), paste0("gene", 1:9)))
 #' m[1, 1:3] <- m[2, c(1:2, 4:5)] <- m[3, c(1, 6:9)] <- TRUE
-#' # Set the seed using the "L'Ecuyer-CMRG" random number generator.
-#' set.seed(1, "L'Ecuyer-CMRG")
+#' # Set the seed using the `rlecuyer` package
+#' rlecuyer:::.lec.SetPackageSeed(1:6)
 #' # Compute the occurrence probabilities.
 #' occ_probs <- nc_occ_probs(m, R = 20, S = 50)
 #' # Using `n_batches=1` can speed up the computations at the cost of more RAM.
@@ -132,7 +132,7 @@ nc_randomize_simple <- function(occ_matrix, S) {
 #' @export
 nc_occ_probs <- function(occ_matrix, R = 500, S = sum(occ_matrix) * 10,
                          mc.cores = getOption("mc.cores", 1L), n_batches = ceiling(R / 30),
-                         verbose = F) {
+                         verbose = FALSE) {
   batch_size <- ceiling(R / n_batches)
   if (!is.numeric(mc.cores) || mc.cores <= 0) {
     stop("mc.cores must be positive.")
@@ -141,19 +141,22 @@ nc_occ_probs <- function(occ_matrix, R = 500, S = sum(occ_matrix) * 10,
     stop("Because you are using ", mc.cores, " cores, the maximum number of ",
          "batches is ceiling(R / ", mc.cores, ") = ", ceiling(R / mc.cores))
   }
-  seeds <- generate_seeds(R)
+  lec_streams <- as.character(seq_len(R))
+  rlecuyer:::.lec.CreateStream(lec_streams)
   swaps <- matrix(0, nrow(occ_matrix), ncol(occ_matrix))
   for (batch in seq_len(n_batches)) {
     if (verbose) {
       message("Starting batch ", batch)
     }
     b <- seq((batch - 1) * batch_size + 1, min(batch * batch_size, R))
-    swaps_batch <- parallel::mclapply(seeds[b], mc.cores = mc.cores, function(r) {
-      .Random.seed <<- r
+    swaps_batch <- parallel::mclapply(b, mc.cores = mc.cores, function(r) {
+      oldkind <- rlecuyer:::.lec.CurrentStream(lec_streams[r])
       nc_randomize(occ_matrix, S)
+      rlecuyer:::.lec.CurrentStreamEnd(oldkind)
     })
     swaps <- swaps + Reduce(`+`, swaps_batch)
   }
+  rlecuyer:::.lec.DeleteStream(lec_streams)
   rownames(swaps) <- rownames(occ_matrix)
   colnames(swaps) <- colnames(occ_matrix)
   swaps / R
@@ -166,11 +169,14 @@ nc_occ_probs <- function(occ_matrix, R = 500, S = sum(occ_matrix) * 10,
 #'
 #' @inheritParams nc_occ_probs
 nc_occ_probs_simple <- function(occ_matrix, R, S) {
-  seeds <- generate_seeds(R)
-  swaps <- lapply(seeds, function(r) {
-    .Random.seed <<- r
+  lec_streams <- as.character(seq_len(R))
+  rlecuyer:::.lec.CreateStream(lec_streams)
+  swaps <- lapply(seq_len(R), function(r) {
+    oldkind <- rlecuyer:::.lec.CurrentStream(lec_streams[r])
     nc_randomize(occ_matrix, S)
+    rlecuyer:::.lec.CurrentStreamEnd(oldkind)
   })
+  rlecuyer:::.lec.DeleteStream(lec_streams)
   occ_probs <- Reduce(`+`, swaps) / R
   rownames(occ_probs) <- rownames(occ_matrix)
   colnames(occ_probs) <- colnames(occ_matrix)
@@ -194,14 +200,14 @@ nc_define_modules <- function(occ_matrix, terms_of_interest, module_size, min_oc
       stop("`terms_of_interest` must be valid column names or indices for `occ_matrix`.")
     }
     other_terms <- setdiff(valid_terms, terms_of_interest)
-    M <- utils::combn(terms_of_interest, module_size, simplify = F)
+    M <- utils::combn(terms_of_interest, module_size, simplify = FALSE)
     for (ms in seq_len(module_size - 1)) {
-      toi_combn <- utils::combn(terms_of_interest, ms, simplify = F)
-      other_combn <- utils::combn(other_terms, module_size - ms, simplify = F)
-      M <- c(M, unlist(lapply(toi_combn, function(toi) lapply(other_combn, function(o) c(toi, o))), recursive = F))
+      toi_combn <- utils::combn(terms_of_interest, ms, simplify = FALSE)
+      other_combn <- utils::combn(other_terms, module_size - ms, simplify = FALSE)
+      M <- c(M, unlist(lapply(toi_combn, function(toi) lapply(other_combn, function(o) c(toi, o))), recursive = FALSE))
     }
   } else {
-    M <- utils::combn(valid_terms, module_size, simplify = F)
+    M <- utils::combn(valid_terms, module_size, simplify = FALSE)
   }
   if (!is.null(colnames(occ_matrix))) {
     M <- lapply(M, function(x) colnames(occ_matrix)[x])
@@ -250,7 +256,6 @@ nc_define_modules <- function(occ_matrix, terms_of_interest, module_size, min_oc
 #' # Now consider only modules involving gene1 or gene2.
 #' nc_eval(m, occ_probs, module_size = 2, terms_of_interest = c("gene1", "gene2"))
 #'
-#' @importFrom PoissonBinomial ppbinom dpbinom
 #' @export
 nc_eval <- function(occ_matrix, occ_probs, terms_of_interest = NULL,
                     module_size = 2, min_occurrences = 0, min_support = 0,
@@ -263,11 +268,11 @@ nc_eval <- function(occ_matrix, occ_probs, terms_of_interest = NULL,
       return(c(k, NA, NA))
     }
     pp <- apply(occ_probs[, module], 1, prod)
-    # pp <- eval(parse(text = paste(paste0("occ_probs[, module[", 1:module_size, "]]"), collapse = " * ")))
-    # pp <- occ_probs[, module[1]]; for (m in 2:length(module)) pp <- pp * occ_probs[, module[2]]
-    c(k,
-      dpbinom(k, pp, method = "Characteristic"),
-      ppbinom(k - 1, pp, method = "Characteristic", lower.tail = F))
+    c(
+      k,
+      PoissonBinomial::dpbinom(k, pp, method = "Characteristic"),
+      PoissonBinomial::ppbinom(k - 1, pp, method = "Characteristic", lower.tail = FALSE)
+    )
   })
   res <- data.frame(
     do.call(rbind, M),
@@ -286,8 +291,8 @@ generate_seeds <- function(n) {
   if (RNGkind()[1] != "L'Ecuyer-CMRG") {
     stop("Due to parallel computations and reproducibility, the netcutter",
          "package requires a \"L'Ecuyer-CMRG\" random number generator.",
-         "Please run either `RNGKind(\"L'Ecuyer-CMRG\")` or",
-         "`set.seed(<my seed>, 'L'Ecuyer-CMRG'.")
+         "Please run either `RNGkind(\"L'Ecuyer-CMRG\")` or",
+         "`set.seed(<my seed>, 'L'Ecuyer-CMRG').")
   }
   seeds <- vector("list", n)
   seeds[[1]] <- .Random.seed
