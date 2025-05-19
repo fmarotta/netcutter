@@ -1,5 +1,9 @@
 # netcutter development version
 
+# netcutter v0.3.1
+
+* Use `rlecuyer` package to generate random numbers
+
 # netcutter v0.3.0
 
 * Introduce the `terms_of_interest` argument of nc_eval().

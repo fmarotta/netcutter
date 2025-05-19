@@ -40,7 +40,7 @@ term in each container under the null hypothesis.
 m <- matrix(FALSE, 3, 9, dimnames = list(paste0("ID", 1:3), paste0("gene", 1:9)))
 m[1, 1:3] <- m[2, c(1:2, 4:5)] <- m[3, c(1, 6:9)] <- TRUE
 # Set the seed using the `rlecuyer` package
-rlecuyer:::.lec.SetPackageSeed(1:6)
+rlecuyer::.lec.SetPackageSeed(1:6)
 # Compute the occurrence probabilities.
 occ_probs <- nc_occ_probs(m, R = 20, S = 50)
 # Using `n_batches=1` can speed up the computations at the cost of more RAM.

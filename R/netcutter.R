@@ -123,7 +123,7 @@ nc_randomize_simple <- function(occ_matrix, S) {
 #' m <- matrix(FALSE, 3, 9, dimnames = list(paste0("ID", 1:3), paste0("gene", 1:9)))
 #' m[1, 1:3] <- m[2, c(1:2, 4:5)] <- m[3, c(1, 6:9)] <- TRUE
 #' # Set the seed using the `rlecuyer` package
-#' rlecuyer:::.lec.SetPackageSeed(1:6)
+#' rlecuyer::.lec.SetPackageSeed(1:6)
 #' # Compute the occurrence probabilities.
 #' occ_probs <- nc_occ_probs(m, R = 20, S = 50)
 #' # Using `n_batches=1` can speed up the computations at the cost of more RAM.
@@ -142,7 +142,7 @@ nc_occ_probs <- function(occ_matrix, R = 500, S = sum(occ_matrix) * 10,
          "batches is ceiling(R / ", mc.cores, ") = ", ceiling(R / mc.cores))
   }
   lec_streams <- as.character(seq_len(R))
-  rlecuyer:::.lec.CreateStream(lec_streams)
+  rlecuyer::.lec.CreateStream(lec_streams)
   swaps <- matrix(0, nrow(occ_matrix), ncol(occ_matrix))
   for (batch in seq_len(n_batches)) {
     if (verbose) {
@@ -150,13 +150,14 @@ nc_occ_probs <- function(occ_matrix, R = 500, S = sum(occ_matrix) * 10,
     }
     b <- seq((batch - 1) * batch_size + 1, min(batch * batch_size, R))
     swaps_batch <- parallel::mclapply(b, mc.cores = mc.cores, function(r) {
-      oldkind <- rlecuyer:::.lec.CurrentStream(lec_streams[r])
-      nc_randomize(occ_matrix, S)
-      rlecuyer:::.lec.CurrentStreamEnd(oldkind)
+      oldkind <- rlecuyer::.lec.CurrentStream(lec_streams[r])
+      res <- nc_randomize(occ_matrix, S)
+      rlecuyer::.lec.CurrentStreamEnd(oldkind)
+      res
     })
     swaps <- swaps + Reduce(`+`, swaps_batch)
   }
-  rlecuyer:::.lec.DeleteStream(lec_streams)
+  rlecuyer::.lec.DeleteStream(lec_streams)
   rownames(swaps) <- rownames(occ_matrix)
   colnames(swaps) <- colnames(occ_matrix)
   swaps / R
@@ -170,13 +171,14 @@ nc_occ_probs <- function(occ_matrix, R = 500, S = sum(occ_matrix) * 10,
 #' @inheritParams nc_occ_probs
 nc_occ_probs_simple <- function(occ_matrix, R, S) {
   lec_streams <- as.character(seq_len(R))
-  rlecuyer:::.lec.CreateStream(lec_streams)
+  rlecuyer::.lec.CreateStream(lec_streams)
   swaps <- lapply(seq_len(R), function(r) {
-    oldkind <- rlecuyer:::.lec.CurrentStream(lec_streams[r])
-    nc_randomize(occ_matrix, S)
-    rlecuyer:::.lec.CurrentStreamEnd(oldkind)
+    oldkind <- rlecuyer::.lec.CurrentStream(lec_streams[r])
+    res <- nc_randomize(occ_matrix, S)
+    rlecuyer::.lec.CurrentStreamEnd(oldkind)
+    res
   })
-  rlecuyer:::.lec.DeleteStream(lec_streams)
+  rlecuyer::.lec.DeleteStream(lec_streams)
   occ_probs <- Reduce(`+`, swaps) / R
   rownames(occ_probs) <- rownames(occ_matrix)
   colnames(occ_probs) <- colnames(occ_matrix)
@@ -280,25 +282,6 @@ nc_eval <- function(occ_matrix, occ_probs, terms_of_interest = NULL,
   )
   names(res) <- c(paste0("Term", 1:module_size), "k", "Pr(==k)", "Pr(>=k)")
   res
-}
-
-#' Generate seeds for streams of "L'Ecuyer-CMRG" random numbers
-#'
-#' @param n Number of streams needed.
-#'
-#' @returns A list of seeds.
-generate_seeds <- function(n) {
-  if (RNGkind()[1] != "L'Ecuyer-CMRG") {
-    stop("Due to parallel computations and reproducibility, the netcutter",
-         "package requires a \"L'Ecuyer-CMRG\" random number generator.",
-         "Please run either `RNGkind(\"L'Ecuyer-CMRG\")` or",
-         "`set.seed(<my seed>, 'L'Ecuyer-CMRG').")
-  }
-  seeds <- vector("list", n)
-  seeds[[1]] <- .Random.seed
-  for (i in seq_len(n-1))
-    seeds[[i+1]] <- parallel::nextRNGStream(seeds[[i]])
-  seeds
 }
 
 #' Sample one item from a vector, even when the vector has length 1
